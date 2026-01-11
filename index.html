@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta content="width=device-width, initial-scale=1.0" name="viewport">
+  <title>TikZ Editor</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+      background: #1a1a2e;
+      color: #eee;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    header {
+      background: #16213e;
+      padding: 12px 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid #0f3460;
+    }
+
+    header h1 {
+      font-size: 1.25rem;
+      font-weight: 500;
+      color: #e94560;
+    }
+
+    .controls {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+    }
+
+    .control-group {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .control-group label {
+      font-size: 0.875rem;
+      color: #aaa;
+    }
+
+    .control-group input[type="range"] {
+      width: 120px;
+      accent-color: #e94560;
+    }
+
+    .control-group span {
+      font-size: 0.875rem;
+      color: #fff;
+      min-width: 35px;
+    }
+
+    select {
+      background: #0f3460;
+      color: #fff;
+      border: 1px solid #1a4080;
+      padding: 6px 10px;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+
+    select:hover {
+      border-color: #e94560;
+    }
+
+    main {
+      flex: 1;
+      display: flex;
+      overflow: hidden;
+    }
+
+    .panel {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+    }
+
+    .panel-header {
+      background: #16213e;
+      padding: 8px 16px;
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: #888;
+      border-bottom: 1px solid #0f3460;
+    }
+
+    .panel-content {
+      flex: 1;
+      overflow: auto;
+    }
+
+    .divider {
+      width: 4px;
+      background: #0f3460;
+      cursor: col-resize;
+    }
+
+    .divider:hover {
+      background: #e94560;
+    }
+
+    #tikz-input {
+      width: 100%;
+      height: 100%;
+      background: #1a1a2e;
+      color: #fff;
+      border: none;
+      padding: 16px;
+      font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+      font-size: 14px;
+      line-height: 1.5;
+      resize: none;
+      outline: none;
+    }
+
+    #tikz-input::placeholder {
+      color: #555;
+    }
+
+    #tikz-preview {
+      width: 100%;
+      height: 100%;
+      background: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: auto;
+    }
+
+    #tikz-preview svg {
+      max-width: 100%;
+      max-height: 100%;
+    }
+
+    #tikz-errors {
+      display: none;
+      background: #ff4757;
+      color: #fff;
+      padding: 10px 16px;
+      font-size: 0.875rem;
+    }
+
+    .error-item {
+      padding: 4px 0;
+    }
+
+    .empty-preview {
+      color: #999;
+      font-size: 0.875rem;
+      text-align: center;
+    }
+
+    /* Syntax highlighting placeholder - can be enhanced */
+    .keyword {
+      color: #e94560;
+    }
+
+    .option {
+      color: #0be881;
+    }
+
+    .number {
+      color: #f9ca24;
+    }
+
+    .comment {
+      color: #666;
+      font-style: italic;
+    }
+  </style>
+</head>
+<body>
+<header>
+  <h1>TikZ Editor</h1>
+  <div class="controls">
+    <div class="control-group">
+      <label for="tikz-scale">Zoom:</label> <input id="tikz-scale" max="100" min="20" type="range" value="50"> <span
+      id="tikz-scale-value">50</span>
+    </div>
+    <div class="control-group">
+      <label for="example-select">Examples:</label> <select id="example-select">
+      <option value="">Select an example...</option>
+      <option value="basic">Basic Shapes</option>
+      <option value="arrows">Arrows</option>
+      <option value="curves">Curves</option>
+      <option value="nodes">Nodes</option>
+      <option value="diagram">Simple Diagram</option>
+      <option value="full">Full Example</option>
+      <option value="styles">Custom Styles</option>
+    </select>
+    </div>
+  </div>
+</header>
+
+<div id="tikz-errors"></div>
+
+<main>
+  <div class="panel">
+    <div class="panel-header">TikZ Code</div>
+    <div class="panel-content">
+        <textarea id="tikz-input" placeholder="Enter TikZ code here...
+
+Example:
+\draw[thick, ->] (0,0) -- (2,1);
+\draw[red] (0,0) circle (0.5);
+\node[draw] at (1,1) {Hello};">\draw[thick, blue, ->] (0,0) -- (3,0);
+\draw[thick, blue, ->] (0,0) -- (0,2);
+\draw[red, thick] (0,0) -- (2,1.5);
+\draw[dashed] (2,0) -- (2,1.5);
+\draw[dashed] (0,1.5) -- (2,1.5);
+\fill[red] (2,1.5) circle (0.08);
+\node at (3,0) [below] {x};
+\node at (0,2) [left] {y};
+\node at (2,1.5) [above right] {P(2,1.5)};</textarea>
+    </div>
+  </div>
+
+  <div class="divider" id="divider"></div>
+
+  <div class="panel">
+    <div class="panel-header">Preview</div>
+    <div class="panel-content">
+      <div id="tikz-preview">
+        <div class="empty-preview">Preview will appear here</div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<script src="./src/main.js" type="module"></script>
+</body>
+</html>
