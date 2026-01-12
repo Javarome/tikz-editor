@@ -223,6 +223,33 @@ export const EXAMPLES = {
 \\draw[arrow] (chi) -- node[right=2mm, note] {infra-physical\\\\projection $\\pi$\\\\\\footnotesize (generally non-injective)} (chieff);
 \\draw[arrow] (chieff) -- node[right=2mm, note] {operational\\\\projection $\\mathcal{O}$\\\\\\footnotesize (contextual access)} (obs);
 
+\\end{tikzpicture}`,
+
+  subsystems: `% Subsystems diagram with dashed box
+\\begin{tikzpicture}[
+  font=\\small,
+  node distance=10mm,
+  box/.style={draw, rounded corners, align=center, inner sep=6pt},
+  arrow/.style={-Latex, thick},
+  note/.style={align=left, font=\\footnotesize},
+  dashedbox/.style={draw, dashed, rounded corners, inner sep=6pt}
+]
+
+\\node[box] (chi) {$\\chi$\\\\\\footnotesize infra-physical substrate};
+
+\\node[box, below=of chi] (chieff) {$\\chi_{\\mathrm{eff}}$\\\\\\footnotesize factorisable regime};
+
+\\node[dashedbox, below=of chieff] (decomp) {$\\chi_{\\mathrm{eff}} \\simeq \\chi_{\\mathrm{eff}}^{(A)} \\otimes \\chi_{\\mathrm{eff}}^{(B)}$\\\\\\footnotesize (independent subsystems)};
+
+\\node[box, below left=10mm and 12mm of decomp] (obsA) {Local observables\\\\in subsystem $A$};
+\\node[box, below right=10mm and 12mm of decomp] (obsB) {Local observables\\\\in subsystem $B$};
+
+\\draw[arrow] (chi) -- node[right=2mm, note] {infra-physical\\\\projection $\\pi$} (chieff);
+\\draw[arrow] (chieff) -- (decomp);
+
+\\draw[arrow] (decomp) -- node[left=2mm, note] {operational\\\\projection $\\mathcal{O}_A$} (obsA);
+\\draw[arrow] (decomp) -- node[right=2mm, note] {operational\\\\projection $\\mathcal{O}_B$} (obsB);
+
 \\end{tikzpicture}`
 }
 

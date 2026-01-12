@@ -317,19 +317,39 @@ export class Parser {
   }
 
   /**
-   * Parse positioning options like "below=of nodename" or "right=2mm"
+   * Parse positioning options like "below=of nodename", "below left=10mm and 12mm of node"
    * Returns a Point if positioning is found, null otherwise
    */
   parsePositioningOptions(options) {
-    const directions = ["above", "below", "left", "right"]
+    const simpleDirections = ["above", "below", "left", "right"]
+    const compoundDirections = ["above left", "above right", "below left", "below right"]
     const offsets = { x: 0, y: 0 }
     let refNode = null
     let direction = null
+    let compoundDistances = { vertical: null, horizontal: null }
 
     for (const opt of options) {
       const [key, value] = this.parseOptionKeyValue(opt)
 
-      if (directions.includes(key)) {
+      // Check for compound directions first (e.g., "below left")
+      if (compoundDirections.includes(key)) {
+        direction = key
+        if (value) {
+          // Check for "Xmm and Ymm of nodename" syntax
+          const compoundOfMatch = value.match(/^(\d+\.?\d*)(mm|cm|pt|em)?\s+and\s+(\d+\.?\d*)(mm|cm|pt|em)?\s+of\s+([a-zA-Z_][a-zA-Z0-9_-]*)$/)
+          if (compoundOfMatch) {
+            compoundDistances.vertical = this.parseDistance(compoundOfMatch[1] + (compoundOfMatch[2] || "mm"))
+            compoundDistances.horizontal = this.parseDistance(compoundOfMatch[3] + (compoundOfMatch[4] || "mm"))
+            refNode = compoundOfMatch[5]
+          } else {
+            // Simple "of nodename" syntax
+            const ofMatch = value.match(/^of\s+([a-zA-Z_][a-zA-Z0-9_-]*)$/)
+            if (ofMatch) {
+              refNode = ofMatch[1]
+            }
+          }
+        }
+      } else if (simpleDirections.includes(key)) {
         direction = key
         if (value) {
           // Check for "of nodename" syntax
@@ -369,6 +389,35 @@ export class Parser {
         // Use anchors to get edge-to-edge distance (like TikZ positioning library)
         // Add extra spacing for the new node's half-height (approximate)
         const nodeHalfHeight = 0.8 // Approximate half-height of a typical node in cm
+
+        // Handle compound directions
+        if (compoundDirections.includes(direction)) {
+          const vDist = compoundDistances.vertical !== null ? compoundDistances.vertical : dist
+          const hDist = compoundDistances.horizontal !== null ? compoundDistances.horizontal : dist
+
+          let x = refPoint.x
+          let y = refPoint.y
+
+          if (direction.includes("above")) {
+            const topAnchor = node.anchors?.north || refPoint
+            y = topAnchor.y + vDist + nodeHalfHeight
+          } else if (direction.includes("below")) {
+            const bottomAnchor = node.anchors?.south || refPoint
+            y = bottomAnchor.y - vDist - nodeHalfHeight
+          }
+
+          if (direction.includes("left")) {
+            const leftAnchor = node.anchors?.west || refPoint
+            x = leftAnchor.x - hDist - nodeHalfHeight
+          } else if (direction.includes("right")) {
+            const rightAnchor = node.anchors?.east || refPoint
+            x = rightAnchor.x + hDist + nodeHalfHeight
+          }
+
+          return new Point(x, y)
+        }
+
+        // Handle simple directions
         switch (direction) {
           case "above":
             const topAnchor = node.anchors?.north || refPoint

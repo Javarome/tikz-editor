@@ -80,7 +80,6 @@ export class Renderer {
       if (command.type === NodeType.NODE && command.name) {
         const metrics = this.measureNode(command)
         this.nodeMetrics.set(command.name, metrics)
-        console.log("Measured node:", command.name, metrics)
       }
       // Also check for inline nodes in draw commands
       if (command.segments) {
@@ -88,12 +87,10 @@ export class Renderer {
           if (seg.type === NodeType.NODE && seg.name) {
             const metrics = this.measureNode(seg)
             this.nodeMetrics.set(seg.name, metrics)
-            console.log("Measured inline node:", seg.name, metrics)
           }
         }
       }
     }
-    console.log("All nodeMetrics:", [...this.nodeMetrics.entries()])
   }
 
   /**
@@ -251,14 +248,6 @@ export class Renderer {
           // but we recalculate using actual measured dimensions
           let fromPoint = segment.from
           let toPoint = segment.to
-
-          console.log("LINE_SEGMENT:", {
-            fromNodeName: segment.fromNodeName,
-            toNodeName: segment.toNodeName,
-            from: segment.from,
-            to: segment.to,
-            nodeMetricsKeys: [...this.nodeMetrics.keys()]
-          })
 
           // Get actual node centers from metrics (parser's segment.from/to may already be boundary points)
           const fromMetrics = segment.fromNodeName ? this.nodeMetrics.get(segment.fromNodeName) : null
@@ -542,6 +531,10 @@ export class Renderer {
       if (draw) {
         shapeEl.setAttribute("stroke", style?.stroke || this.defaultStroke)
         shapeEl.setAttribute("stroke-width", (style?.lineWidth || 0.4) * 2)
+        // Apply dash pattern if present
+        if (style?.dashPattern) {
+          shapeEl.setAttribute("stroke-dasharray", style.dashPattern.map(v => v * 2).join(" "))
+        }
       } else {
         shapeEl.setAttribute("stroke", "none")
       }
@@ -798,8 +791,22 @@ export class Renderer {
       .replace(/\\leftarrow/g, "←")
       .replace(/\\Rightarrow/g, "⇒")
       .replace(/\\Leftarrow/g, "⇐")
+      .replace(/\\simeq/g, "≃")
+      .replace(/\\otimes/g, "⊗")
+      .replace(/\\oplus/g, "⊕")
+      .replace(/\\subset/g, "⊂")
+      .replace(/\\supset/g, "⊃")
+      .replace(/\\subseteq/g, "⊆")
+      .replace(/\\supseteq/g, "⊇")
+      .replace(/\\in/g, "∈")
+      .replace(/\\notin/g, "∉")
+      .replace(/\\forall/g, "∀")
+      .replace(/\\exists/g, "∃")
+      .replace(/\\neg/g, "¬")
+      .replace(/\\land/g, "∧")
+      .replace(/\\lor/g, "∨")
 
-    // Handle \mathcal{...} - simplified
+    // Handle \mathcal{...} - use script/calligraphic style
     processed = processed.replace(/\\mathcal\{([^}]+)\}/g, "$1")
 
     // Handle subscripts with \mathrm inside: _{\mathrm{...}}
