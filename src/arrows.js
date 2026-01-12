@@ -40,7 +40,9 @@ export function getArrowMarker(type, isStart, color = "#000000") {
     ">": "standard",
     "<": "standard",
     "stealth": "stealth",
+    "Stealth": "stealth",  // arrows.meta style
     "latex": "latex",
+    "Latex": "latex",      // arrows.meta style
     "to": "to",
     "|": "bar",
     ">>": "double",
@@ -65,7 +67,7 @@ function createStandardArrow(color, scale) {
   endMarker.setAttribute("refY", "5")
   endMarker.setAttribute("markerWidth", size)
   endMarker.setAttribute("markerHeight", size)
-  endMarker.setAttribute("orient", "auto-start-reverse")
+  endMarker.setAttribute("orient", "auto")
   endMarker.setAttribute("markerUnits", "userSpaceOnUse")
 
   const path = document.createElementNS("http://www.w3.org/2000/svg", "path")
@@ -94,7 +96,7 @@ function createStealthArrow(color, scale) {
   endMarker.setAttribute("refY", "6")
   endMarker.setAttribute("markerWidth", size)
   endMarker.setAttribute("markerHeight", size)
-  endMarker.setAttribute("orient", "auto-start-reverse")
+  endMarker.setAttribute("orient", "auto")
   endMarker.setAttribute("markerUnits", "userSpaceOnUse")
 
   const path = document.createElementNS("http://www.w3.org/2000/svg", "path")
@@ -114,26 +116,27 @@ function createStealthArrow(color, scale) {
  */
 function createLatexArrow(color, scale) {
   const colorId = color.replace(/[^a-zA-Z0-9]/g, "")
-  const size = 10 * scale
+  const size = 12 * scale
 
   const endMarker = document.createElementNS("http://www.w3.org/2000/svg", "marker")
   endMarker.setAttribute("id", `arrow-latex-end-${colorId}`)
-  endMarker.setAttribute("viewBox", "0 0 10 10")
-  endMarker.setAttribute("refX", "9")
-  endMarker.setAttribute("refY", "5")
+  endMarker.setAttribute("viewBox", "0 0 12 12")
+  endMarker.setAttribute("refX", "10")
+  endMarker.setAttribute("refY", "6")
   endMarker.setAttribute("markerWidth", size)
   endMarker.setAttribute("markerHeight", size)
-  endMarker.setAttribute("orient", "auto-start-reverse")
+  endMarker.setAttribute("orient", "auto")
   endMarker.setAttribute("markerUnits", "userSpaceOnUse")
 
+  // LaTeX-style arrow: pointed triangle with slight curve
   const path = document.createElementNS("http://www.w3.org/2000/svg", "path")
-  path.setAttribute("d", "M 0 0 C 3 3, 3 5, 0 5 L 10 5 L 0 5 C 3 5, 3 7, 0 10 L 0 0 Z")
+  path.setAttribute("d", "M 0 1 Q 4 6, 0 11 L 12 6 Z")
   path.setAttribute("fill", color)
   endMarker.appendChild(path)
 
   const startMarker = endMarker.cloneNode(true)
   startMarker.setAttribute("id", `arrow-latex-start-${colorId}`)
-  startMarker.setAttribute("refX", "1")
+  startMarker.setAttribute("refX", "2")
 
   return { end: endMarker, start: startMarker }
 }
@@ -152,7 +155,7 @@ function createToArrow(color, scale) {
   endMarker.setAttribute("refY", "5")
   endMarker.setAttribute("markerWidth", size)
   endMarker.setAttribute("markerHeight", size)
-  endMarker.setAttribute("orient", "auto-start-reverse")
+  endMarker.setAttribute("orient", "auto")
   endMarker.setAttribute("markerUnits", "userSpaceOnUse")
 
   const path = document.createElementNS("http://www.w3.org/2000/svg", "path")
@@ -217,7 +220,7 @@ function createReversedArrow(color, scale) {
   endMarker.setAttribute("refY", "5")
   endMarker.setAttribute("markerWidth", size)
   endMarker.setAttribute("markerHeight", size)
-  endMarker.setAttribute("orient", "auto-start-reverse")
+  endMarker.setAttribute("orient", "auto")
   endMarker.setAttribute("markerUnits", "userSpaceOnUse")
 
   const path = document.createElementNS("http://www.w3.org/2000/svg", "path")
@@ -246,7 +249,7 @@ function createDoubleArrow(color, scale) {
   endMarker.setAttribute("refY", "5")
   endMarker.setAttribute("markerWidth", size)
   endMarker.setAttribute("markerHeight", size)
-  endMarker.setAttribute("orient", "auto-start-reverse")
+  endMarker.setAttribute("orient", "auto")
   endMarker.setAttribute("markerUnits", "userSpaceOnUse")
 
   const path = document.createElementNS("http://www.w3.org/2000/svg", "path")

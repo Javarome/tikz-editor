@@ -1,7 +1,6 @@
 /**
  * TikZ Coordinate System - Handles coordinate parsing and transformations
  */
-
 export class Point {
   constructor(x, y) {
     this.x = x
@@ -50,8 +49,8 @@ export class CoordinateSystem {
     this.namedCoordinates.set(name, point)
   }
 
-  registerNode(name, point, anchors) {
-    this.nodes.set(name, { center: point, anchors })
+  registerNode(name, point, anchors, shape = "rectangle", width = 1, height = 0.5) {
+    this.nodes.set(name, { center: point, anchors, shape, width, height })
   }
 
   /**
@@ -221,11 +220,109 @@ export class CoordinateSystem {
 
     return anchors
   }
+
+  /**
+   * Calculate the point where a line from a node's center toward a target point
+   * intersects with the node's boundary.
+   * @param {string} nodeName - The name of the node
+   * @param {Point} targetPoint - The point the line is heading toward
+   * @returns {Point} - The intersection point on the node boundary
+   */
+  getNodeBoundaryPoint(nodeName, targetPoint) {
+    const node = this.nodes.get(nodeName)
+    if (!node) {
+      return targetPoint
+    }
+
+    const center = node.center
+    const shape = node.shape || "rectangle"
+    const width = node.width || 1
+    const height = node.height || 0.5
+
+    // Direction vector from center to target
+    const dx = targetPoint.x - center.x
+    const dy = targetPoint.y - center.y
+
+    // If target is at the center, return center
+    if (dx === 0 && dy === 0) {
+      return center.clone()
+    }
+
+    const hw = width / 2
+    const hh = height / 2
+
+    if (shape === "circle") {
+      // For circle, use the larger dimension as radius
+      const r = Math.max(hw, hh)
+      const dist = Math.sqrt(dx * dx + dy * dy)
+      const scale = r / dist
+      return new Point(center.x + dx * scale, center.y + dy * scale)
+    } else if (shape === "ellipse") {
+      // For ellipse, scale the direction vector
+      const angle = Math.atan2(dy, dx)
+      const x = hw * Math.cos(angle)
+      const y = hh * Math.sin(angle)
+      return new Point(center.x + x, center.y + y)
+    } else {
+      // Rectangle: find intersection with the rectangle boundary
+      // Calculate intersection with each edge and find the closest one
+      const dist = Math.sqrt(dx * dx + dy * dy)
+      const nx = dx / dist  // normalized direction
+      const ny = dy / dist
+
+      let t = Infinity
+
+      // Check intersection with right edge (x = hw)
+      if (nx !== 0) {
+        const tRight = hw / nx
+        if (tRight > 0) {
+          const yAtRight = ny * tRight
+          if (Math.abs(yAtRight) <= hh) {
+            t = Math.min(t, tRight)
+          }
+        }
+        // Check intersection with left edge (x = -hw)
+        const tLeft = -hw / nx
+        if (tLeft > 0) {
+          const yAtLeft = ny * tLeft
+          if (Math.abs(yAtLeft) <= hh) {
+            t = Math.min(t, tLeft)
+          }
+        }
+      }
+
+      // Check intersection with top edge (y = hh)
+      if (ny !== 0) {
+        const tTop = hh / ny
+        if (tTop > 0) {
+          const xAtTop = nx * tTop
+          if (Math.abs(xAtTop) <= hw) {
+            t = Math.min(t, tTop)
+          }
+        }
+        // Check intersection with bottom edge (y = -hh)
+        const tBottom = -hh / ny
+        if (tBottom > 0) {
+          const xAtBottom = nx * tBottom
+          if (Math.abs(xAtBottom) <= hw) {
+            t = Math.min(t, tBottom)
+          }
+        }
+      }
+
+      if (t !== Infinity) {
+        return new Point(center.x + nx * t, center.y + ny * t)
+      }
+
+      return center.clone()
+    }
+  }
 }
 
 /**
  * Parse a coordinate token value, handling relative prefixes
- * Returns { point, isRelative, updatesPosition }
+ * Returns { point, isRelative, updatesPosition, nodeName }
+ * nodeName is set if the coordinate references a node (without explicit anchor)
  */
 export function parseCoordinateToken(value, coordSystem) {
   let isRelative = false
@@ -248,7 +345,16 @@ export function parseCoordinateToken(value, coordSystem) {
   // Remove parentheses if present (shouldn't be, but just in case)
   coordString = coordString.replace(/^\(/, "").replace(/\)$/, "")
 
+  // Check if this is a plain node reference (no anchor, no coordinates)
+  // This is needed for auto-anchoring at node boundaries
+  let nodeName = null
+  const trimmed = coordString.trim()
+  const isNodeRef = trimmed.match(/^([a-zA-Z_][a-zA-Z0-9_-]*)$/)
+  if (isNodeRef && !isRelative && coordSystem.nodes.has(isNodeRef[1])) {
+    nodeName = isNodeRef[1]
+  }
+
   const point = coordSystem.parseCoordinate(coordString, isRelative, updatesPosition)
 
-  return { point, isRelative, updatesPosition }
+  return { point, isRelative, updatesPosition, nodeName }
 }

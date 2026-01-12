@@ -145,7 +145,8 @@ export class Lexer {
       "node": TokenType.NODE,
       "at": TokenType.AT,
       "and": TokenType.AND,
-      "controls": TokenType.CONTROLS
+      "controls": TokenType.CONTROLS,
+      "of": TokenType.IDENTIFIER  // Keep as identifier but recognize it
     }
 
     const type = keywords[value] || TokenType.IDENTIFIER

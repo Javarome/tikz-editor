@@ -1,10 +1,9 @@
-/**
- * TikZ Editor UI Controller
- */
-
 import { parse } from "./parser.js"
 import { Renderer } from "./renderer.js"
 
+/**
+ * TikZ Editor UI Controller
+ */
 export class TikZEditor {
   constructor(options = {}) {
     this.textareaId = options.textareaId || "tikz-input"
@@ -204,6 +203,26 @@ export const EXAMPLES = {
 \\node[box] (A) at (0,0) {Start};
 \\node[box] (B) at (3,0) {End};
 \\draw[arrow] (A) -- (B);
+\\end{tikzpicture}`,
+
+  positioning: `% Positioning and edge labels
+\\begin{tikzpicture}[
+  font=\\small,
+  node distance=14mm,
+  box/.style={draw, rounded corners, align=center, inner sep=6pt},
+  arrow/.style={-Latex, thick},
+  note/.style={align=left, font=\\footnotesize}
+]
+
+\\node[box] (chi) {$\\chi$\\\\\\footnotesize infra-physical\\\\\\footnotesize relational substrate};
+
+\\node[box, below=of chi] (chieff) {$\\chi_{\\mathrm{eff}}$\\\\\\footnotesize physical effective reality\\\\\\footnotesize (projectable regime)};
+
+\\node[box, below=of chieff] (obs) {Observables\\\\\\footnotesize context-dependent\\\\\\footnotesize operational quantities};
+
+\\draw[arrow] (chi) -- node[right=2mm, note] {infra-physical\\\\projection $\\pi$\\\\\\footnotesize (generally non-injective)} (chieff);
+\\draw[arrow] (chieff) -- node[right=2mm, note] {operational\\\\projection $\\mathcal{O}$\\\\\\footnotesize (contextual access)} (obs);
+
 \\end{tikzpicture}`
 }
 

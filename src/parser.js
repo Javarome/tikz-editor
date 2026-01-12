@@ -39,6 +39,8 @@ export class Parser {
     this.position = 0
     this.coordSystem = new CoordinateSystem()
     this.styles = new Map() // Style registry for .style definitions
+    this.nodeDistance = 1 // Default node distance in cm
+    this.defaultFontSize = null // Global font size
     this.errors = []
   }
 
@@ -158,13 +160,42 @@ export class Parser {
   parsePictureOptions(options) {
     for (const opt of options) {
       // Check for style definition: name/.style={...}
-      const styleMatch = opt.match(/^([a-zA-Z][a-zA-Z0-9-]*)\/\.style\s*=\s*\{(.+)\}$/s)
+      const styleMatch = opt.match(/^([a-zA-Z][a-zA-Z0-9_-]*)\/\.style\s*=\s*\{(.+)\}$/s)
       if (styleMatch) {
         const styleName = styleMatch[1]
         const styleValue = styleMatch[2]
         // Parse the style value into individual options
         const styleOptions = this.parseStyleValue(styleValue)
         this.styles.set(styleName, styleOptions)
+        continue
+      }
+
+      // Check for node distance
+      const distMatch = opt.match(/^node\s+distance\s*=\s*(\d+\.?\d*)(mm|cm|pt|em)?$/i)
+      if (distMatch) {
+        let distance = parseFloat(distMatch[1])
+        const unit = distMatch[2] || "cm"
+        // Convert to cm (our internal unit)
+        switch (unit.toLowerCase()) {
+          case "mm":
+            distance *= 0.1
+            break
+          case "pt":
+            distance *= 0.0353
+            break
+          case "em":
+            distance *= 0.423 // Approximate
+            break
+          // cm is default
+        }
+        this.nodeDistance = distance
+        continue
+      }
+
+      // Check for global font setting
+      const [key, value] = this.parseOptionKeyValue(opt)
+      if (key === "font") {
+        this.defaultFontSize = this.parseFontSize(value)
       }
     }
   }
@@ -214,30 +245,44 @@ export class Parser {
   parseNodeCommand() {
     this.advance() // consume \node
 
-    const options = this.parseOptionsBlock()
-    const style = parseOptions(options)
+    // TikZ supports both syntaxes:
+    // 1. \node (name) [options] at (coord) {text};
+    // 2. \node [options] (name) at (coord) {text};
 
-    // Parse node name if present: (name)
+    // Try to parse name FIRST if present before options: (name)
     let name = null
     if (this.peek()?.type === TokenType.COORDINATE) {
-      const coordToken = this.advance()
-      // Check if this is a name (no comma, no colon)
+      const coordToken = this.peek()
+      // Check if this is a name (no comma, no colon) - names are simple identifiers
       if (!coordToken.value.includes(",") && !coordToken.value.includes(":")) {
-        name = coordToken.value
-      } else {
-        // It's actually a position, put it back
-        this.position--
+        name = this.advance().value
       }
     }
 
-    // Parse "at (coord)"
+    // Parse options: [options]
+    const options = this.parseOptionsBlock()
+    const style = parseOptions(options)
+
+    // If name wasn't before options, try to parse it after: \node [options] (name)
+    if (!name && this.peek()?.type === TokenType.COORDINATE) {
+      const coordToken = this.peek()
+      if (!coordToken.value.includes(",") && !coordToken.value.includes(":")) {
+        name = this.advance().value
+      }
+    }
+
+    // Parse "at (coord)" or check for positioning options
     let position = new Point(0, 0)
+    let positionFromOptions = this.parsePositioningOptions(options)
+
     if (this.match(TokenType.AT)) {
       const coordToken = this.expect(TokenType.COORDINATE)
       if (coordToken) {
         const result = parseCoordinateToken(coordToken.value, this.coordSystem)
         position = result.point
       }
+    } else if (positionFromOptions) {
+      position = positionFromOptions
     }
 
     // Parse node text
@@ -248,8 +293,8 @@ export class Parser {
 
     this.match(TokenType.SEMICOLON)
 
-    // Parse node options for shape, size, etc.
-    const nodeOptions = this.parseNodeOptions(options)
+    // Parse node options for shape, size, etc. (pass text for dimension estimation)
+    const nodeOptions = this.parseNodeOptions(options, text)
 
     // Register the node if it has a name
     if (name) {
@@ -259,7 +304,7 @@ export class Parser {
         nodeOptions.width,
         nodeOptions.height
       )
-      this.coordSystem.registerNode(name, position, anchors)
+      this.coordSystem.registerNode(name, position, anchors, nodeOptions.shape, nodeOptions.width, nodeOptions.height)
     }
 
     return new ASTNode(NodeType.NODE, {
@@ -271,7 +316,114 @@ export class Parser {
     })
   }
 
-  parseNodeOptions(options) {
+  /**
+   * Parse positioning options like "below=of nodename" or "right=2mm"
+   * Returns a Point if positioning is found, null otherwise
+   */
+  parsePositioningOptions(options) {
+    const directions = ["above", "below", "left", "right"]
+    const offsets = { x: 0, y: 0 }
+    let refNode = null
+    let direction = null
+
+    for (const opt of options) {
+      const [key, value] = this.parseOptionKeyValue(opt)
+
+      if (directions.includes(key)) {
+        direction = key
+        if (value) {
+          // Check for "of nodename" syntax
+          const ofMatch = value.match(/^of\s+([a-zA-Z_][a-zA-Z0-9_-]*)$/)
+          if (ofMatch) {
+            refNode = ofMatch[1]
+          } else {
+            // Parse distance value
+            const dist = this.parseDistance(value)
+            if (dist !== null) {
+              switch (key) {
+                case "above":
+                  offsets.y = dist
+                  break
+                case "below":
+                  offsets.y = -dist
+                  break
+                case "right":
+                  offsets.x = dist
+                  break
+                case "left":
+                  offsets.x = -dist
+                  break
+              }
+            }
+          }
+        }
+      }
+    }
+
+    // If we have a reference node with "of" syntax
+    if (refNode && direction) {
+      const node = this.coordSystem.nodes.get(refNode)
+      if (node) {
+        const refPoint = node.center
+        const dist = this.nodeDistance
+        // Use anchors to get edge-to-edge distance (like TikZ positioning library)
+        // Add extra spacing for the new node's half-height (approximate)
+        const nodeHalfHeight = 0.8 // Approximate half-height of a typical node in cm
+        switch (direction) {
+          case "above":
+            const topAnchor = node.anchors?.north || refPoint
+            return new Point(refPoint.x, topAnchor.y + dist + nodeHalfHeight)
+          case "below":
+            const bottomAnchor = node.anchors?.south || refPoint
+            return new Point(refPoint.x, bottomAnchor.y - dist - nodeHalfHeight)
+          case "right":
+            const rightAnchor = node.anchors?.east || refPoint
+            return new Point(rightAnchor.x + dist + nodeHalfHeight, refPoint.y)
+          case "left":
+            const leftAnchor = node.anchors?.west || refPoint
+            return new Point(leftAnchor.x - dist - nodeHalfHeight, refPoint.y)
+        }
+      }
+    }
+
+    // If we only have offsets (no reference node)
+    if (offsets.x !== 0 || offsets.y !== 0) {
+      return new Point(offsets.x, offsets.y)
+    }
+
+    return null
+  }
+
+  /**
+   * Parse a distance value with optional unit (e.g., "2mm", "1cm", "10pt")
+   */
+  parseDistance(value) {
+    if (!value) return null
+
+    const match = value.match(/^(-?\d+\.?\d*)(mm|cm|pt|em)?$/)
+    if (!match) return null
+
+    let dist = parseFloat(match[1])
+    const unit = match[2] || "cm"
+
+    // Convert to cm
+    switch (unit.toLowerCase()) {
+      case "mm":
+        dist *= 0.1
+        break
+      case "pt":
+        dist *= 0.0353
+        break
+      case "em":
+        dist *= 0.423
+        break
+      // cm is default
+    }
+
+    return dist
+  }
+
+  parseNodeOptions(options, text = "") {
     const result = {
       shape: "rectangle",
       anchor: "center",
@@ -280,7 +432,9 @@ export class Parser {
       innerSep: 0.3333,
       outerSep: 0.5,
       draw: false,
-      fill: null
+      fill: null,
+      align: "center",
+      fontSize: this.defaultFontSize // Use global default if set
     }
 
     for (const opt of options) {
@@ -313,16 +467,23 @@ export class Parser {
           result.width = result.height = parseFloat(value) || 1
           break
         case "inner sep":
-          result.innerSep = parseFloat(value) || 0.3333
+          result.innerSep = this.parseDistance(value) || 0.3333
           break
         case "outer sep":
-          result.outerSep = parseFloat(value) || 0.5
+          result.outerSep = this.parseDistance(value) || 0.5
           break
         case "draw":
           result.draw = true
           break
         case "fill":
           result.fill = value || "currentColor"
+          break
+        case "align":
+          result.align = value || "center"
+          break
+        case "font":
+          // Parse font size commands
+          result.fontSize = this.parseFontSize(value)
           break
         case "above":
         case "below":
@@ -333,7 +494,32 @@ export class Parser {
       }
     }
 
+    // Text-based dimensions are now calculated by the renderer using getBBox()
+    // Parser only sets width/height if explicitly specified via minimum width/height
+
     return result
+  }
+
+  /**
+   * Parse font size command (e.g., \small, \footnotesize)
+   */
+  parseFontSize(value) {
+    if (!value) return null
+
+    const fontSizes = {
+      "\\tiny": 6,
+      "\\scriptsize": 8,
+      "\\footnotesize": 10,
+      "\\small": 12,
+      "\\normalsize": 14,
+      "\\large": 16,
+      "\\Large": 18,
+      "\\LARGE": 20,
+      "\\huge": 24,
+      "\\Huge": 28
+    }
+
+    return fontSizes[value] || null
   }
 
   oppositeAnchor(direction) {
@@ -384,9 +570,32 @@ export class Parser {
 
     let current = ""
     let depth = 0
+    let lastTokenType = null
 
     while (this.peek()?.type !== TokenType.OPTION_END && this.peek()?.type !== TokenType.EOF) {
       const token = this.advance()
+
+      // Add space between consecutive identifiers (for multi-word keys like "inner sep")
+      // But NOT between number and unit (like "14mm")
+      // Note: Some keywords like "node" are tokenized as NODE, not IDENTIFIER
+      const isUnit = token.type === TokenType.IDENTIFIER &&
+        ["mm", "cm", "pt", "em", "ex", "in"].includes(token.value)
+
+      const isWordToken = (type) => type === TokenType.IDENTIFIER || type === TokenType.NODE ||
+        type === TokenType.AT || type === TokenType.TO || type === TokenType.AND ||
+        type === TokenType.CONTROLS || type === TokenType.CYCLE
+
+      const needsSpace = (
+        isWordToken(lastTokenType) && token.type === TokenType.IDENTIFIER && !isUnit
+      ) || (
+        isWordToken(lastTokenType) && token.type === TokenType.NUMBER
+      ) || (
+        lastTokenType === TokenType.IDENTIFIER && isWordToken(token.type) && token.type !== TokenType.IDENTIFIER
+      )
+
+      if (needsSpace) {
+        current += " "
+      }
 
       if (token.type === TokenType.BRACE_START) {
         current += "{"
@@ -399,6 +608,8 @@ export class Parser {
           options.push(current.trim())
         }
         current = ""
+        lastTokenType = null
+        continue
       } else if (token.type === TokenType.EQUALS) {
         current += "="
       } else if (token.type === TokenType.STRING) {
@@ -406,6 +617,8 @@ export class Parser {
       } else if (token.value !== null) {
         current += token.value
       }
+
+      lastTokenType = token.type
     }
 
     if (current.trim()) {
@@ -441,20 +654,25 @@ export class Parser {
 
     // Parse first coordinate
     let firstPoint = null
+    let firstNodeName = null  // Track if first point is a node reference
     if (this.peek()?.type === TokenType.COORDINATE) {
       const token = this.advance()
       const coordValue = this.getCoordinateValue(token)
       const result = parseCoordinateToken(coordValue, this.coordSystem)
       firstPoint = result.point
+      firstNodeName = result.nodeName
     }
 
     // Parse path operations
     while (this.peek()?.type !== TokenType.SEMICOLON && this.peek()?.type !== TokenType.EOF) {
-      const segment = this.parsePathSegment(firstPoint)
+      const { segment, toNodeName } = this.parsePathSegment(firstPoint, firstNodeName)
       if (segment) {
         segments.push(segment)
         if (segment.to) {
           firstPoint = segment.to
+          firstNodeName = toNodeName
+        } else {
+          firstNodeName = null
         }
       } else {
         break
@@ -473,42 +691,42 @@ export class Parser {
     return value
   }
 
-  parsePathSegment(fromPoint) {
+  parsePathSegment(fromPoint, fromNodeName = null) {
     const token = this.peek()
 
-    if (!token) return null
+    if (!token) return { segment: null, toNodeName: null }
 
     switch (token.type) {
       case TokenType.LINE_TO:
-        return this.parseLineTo(fromPoint)
+        return this.parseLineTo(fromPoint, fromNodeName)
 
       case TokenType.CURVE_TO:
-        return this.parseCurveTo(fromPoint)
+        return this.parseCurveTo(fromPoint, fromNodeName)
 
       case TokenType.TO:
-        return this.parseToOperation(fromPoint)
+        return this.parseToOperation(fromPoint, fromNodeName)
 
       case TokenType.CIRCLE:
-        return this.parseCircle(fromPoint)
+        return { segment: this.parseCircle(fromPoint), toNodeName: null }
 
       case TokenType.ELLIPSE:
-        return this.parseEllipse(fromPoint)
+        return { segment: this.parseEllipse(fromPoint), toNodeName: null }
 
       case TokenType.RECTANGLE:
-        return this.parseRectangle(fromPoint)
+        return { segment: this.parseRectangle(fromPoint), toNodeName: null }
 
       case TokenType.ARC:
-        return this.parseArc(fromPoint)
+        return { segment: this.parseArc(fromPoint), toNodeName: null }
 
       case TokenType.GRID:
-        return this.parseGrid(fromPoint)
+        return { segment: this.parseGrid(fromPoint), toNodeName: null }
 
       case TokenType.CYCLE:
         this.advance()
-        return new ASTNode(NodeType.CYCLE, { from: fromPoint })
+        return { segment: new ASTNode(NodeType.CYCLE, { from: fromPoint }), toNodeName: null }
 
       case TokenType.NODE:
-        return this.parseInlineNode(fromPoint)
+        return { segment: this.parseInlineNode(fromPoint), toNodeName: null }
 
       case TokenType.PLUS:
         // Handle relative coordinate
@@ -518,28 +736,50 @@ export class Parser {
           const coordToken = this.advance()
           const prefix = isDouble ? "++" : "+"
           const result = parseCoordinateToken(prefix + coordToken.value, this.coordSystem)
-          return new ASTNode(NodeType.LINE_SEGMENT, {
-            from: fromPoint,
-            to: result.point
-          })
+          return {
+            segment: new ASTNode(NodeType.LINE_SEGMENT, {
+              from: fromPoint,
+              to: result.point
+            }),
+            toNodeName: null
+          }
         }
-        return null
+        return { segment: null, toNodeName: null }
 
       case TokenType.COORDINATE:
         // Bare coordinate - implicit line to
         const coordToken = this.advance()
         const result = parseCoordinateToken(coordToken.value, this.coordSystem)
-        return new ASTNode(NodeType.LINE_SEGMENT, {
-          from: fromPoint,
-          to: result.point
-        })
+        // Adjust endpoints for node references
+        let adjustedFrom = fromPoint
+        let adjustedTo = result.point
+        if (fromNodeName && result.nodeName) {
+          // Both endpoints are nodes - adjust both
+          adjustedFrom = this.coordSystem.getNodeBoundaryPoint(fromNodeName, result.point)
+          adjustedTo = this.coordSystem.getNodeBoundaryPoint(result.nodeName, fromPoint)
+        } else if (fromNodeName) {
+          // Only from is a node
+          adjustedFrom = this.coordSystem.getNodeBoundaryPoint(fromNodeName, result.point)
+        } else if (result.nodeName) {
+          // Only to is a node
+          adjustedTo = this.coordSystem.getNodeBoundaryPoint(result.nodeName, fromPoint)
+        }
+        return {
+          segment: new ASTNode(NodeType.LINE_SEGMENT, {
+            from: adjustedFrom,
+            to: adjustedTo,
+            fromNodeName,
+            toNodeName: result.nodeName
+          }),
+          toNodeName: result.nodeName
+        }
 
       default:
-        return null
+        return { segment: null, toNodeName: null }
     }
   }
 
-  parseLineTo(fromPoint) {
+  parseLineTo(fromPoint, fromNodeName = null) {
     this.advance() // consume --
 
     // Check for options like [out=45, in=135]
@@ -548,7 +788,13 @@ export class Parser {
     // Check for cycle (-- cycle is valid in TikZ)
     if (this.peek()?.type === TokenType.CYCLE) {
       this.advance()
-      return new ASTNode(NodeType.CYCLE, { from: fromPoint })
+      return { segment: new ASTNode(NodeType.CYCLE, { from: fromPoint }), toNodeName: null }
+    }
+
+    // Check for edge label (node between -- and coordinate)
+    let edgeLabel = null
+    if (this.peek()?.type === TokenType.NODE) {
+      edgeLabel = this.parseEdgeLabel()
     }
 
     // Check for + or ++ prefix
@@ -558,29 +804,151 @@ export class Parser {
     }
 
     const coordToken = this.expect(TokenType.COORDINATE)
-    if (!coordToken) return null
+    if (!coordToken) return { segment: null, toNodeName: null }
 
     coordValue += coordToken.value
     const result = parseCoordinateToken(coordValue, this.coordSystem)
 
-    return new ASTNode(NodeType.LINE_SEGMENT, {
-      from: fromPoint,
-      to: result.point,
-      options
-    })
+    // Adjust endpoints for node references
+    let adjustedFrom = fromPoint
+    let adjustedTo = result.point
+    if (fromNodeName && result.nodeName) {
+      // Both endpoints are nodes - adjust both
+      adjustedFrom = this.coordSystem.getNodeBoundaryPoint(fromNodeName, result.point)
+      adjustedTo = this.coordSystem.getNodeBoundaryPoint(result.nodeName, fromPoint)
+    } else if (fromNodeName) {
+      // Only from is a node
+      adjustedFrom = this.coordSystem.getNodeBoundaryPoint(fromNodeName, result.point)
+    } else if (result.nodeName) {
+      // Only to is a node
+      adjustedTo = this.coordSystem.getNodeBoundaryPoint(result.nodeName, fromPoint)
+    }
+
+    return {
+      segment: new ASTNode(NodeType.LINE_SEGMENT, {
+        from: adjustedFrom,
+        to: adjustedTo,
+        options,
+        edgeLabel,
+        fromNodeName,
+        toNodeName: result.nodeName
+      }),
+      toNodeName: result.nodeName
+    }
   }
 
-  parseCurveTo(fromPoint) {
+  /**
+   * Parse an edge label: node[options] {text}
+   */
+  parseEdgeLabel() {
+    this.advance() // consume "node"
+
+    const options = this.parseOptionsBlock()
+    const style = parseOptions(options)
+
+    // Parse edge label positioning options
+    const labelPosition = this.parseEdgeLabelPosition(options)
+
+    // Parse optional name
+    let name = null
+    if (this.peek()?.type === TokenType.COORDINATE) {
+      const nameToken = this.peek()
+      if (!nameToken.value.includes(",") && !nameToken.value.includes(":")) {
+        name = this.advance().value
+      }
+    }
+
+    // Parse node text
+    let text = ""
+    if (this.peek()?.type === TokenType.STRING) {
+      text = this.advance().value
+    }
+
+    // Parse node options (pass text for dimension estimation)
+    const nodeOptions = this.parseNodeOptions(options, text)
+
+    return {
+      name,
+      text,
+      style,
+      labelPosition,
+      ...nodeOptions
+    }
+  }
+
+  /**
+   * Parse edge label positioning options (above, below, left, right, pos, etc.)
+   */
+  parseEdgeLabelPosition(options) {
+    const position = {
+      pos: 0.5, // Default: middle of edge
+      offset: { x: 0, y: 0 },
+      anchor: "center",
+      align: null // Will be set based on positioning
+    }
+
+    for (const opt of options) {
+      const [key, value] = this.parseOptionKeyValue(opt)
+
+      switch (key) {
+        case "pos":
+          position.pos = parseFloat(value) || 0.5
+          break
+        case "midway":
+          position.pos = 0.5
+          break
+        case "near start":
+          position.pos = 0.25
+          break
+        case "near end":
+          position.pos = 0.75
+          break
+        case "at start":
+          position.pos = 0
+          break
+        case "at end":
+          position.pos = 1
+          break
+        case "above":
+          position.offset.y = this.parseDistance(value) || 0.15
+          position.anchor = "south"
+          position.align = "center"
+          break
+        case "below":
+          position.offset.y = -(this.parseDistance(value) || 0.15)
+          position.anchor = "north"
+          position.align = "center"
+          break
+        case "left":
+          position.offset.x = -(this.parseDistance(value) || 0.15)
+          position.anchor = "east"
+          position.align = "right" // Text aligned to the right (ends at anchor)
+          break
+        case "right":
+          position.offset.x = this.parseDistance(value) || 0.15
+          position.anchor = "west"
+          position.align = "left" // Text aligned to the left (starts from anchor)
+          break
+        case "sloped":
+          position.sloped = true
+          break
+      }
+    }
+
+    return position
+  }
+
+  parseCurveTo(fromPoint, fromNodeName = null) {
     this.advance() // consume ..
 
     // Expect "controls"
     if (!this.match(TokenType.CONTROLS)) {
-      return null
+      return { segment: null, toNodeName: null }
     }
 
     // First control point
     const control1Token = this.expect(TokenType.COORDINATE)
-    if (!control1Token) return null
+    if (!control1Token) return { segment: null, toNodeName: null }
     const control1 = parseCoordinateToken(control1Token.value, this.coordSystem)
 
     // Check for "and" (second control point)
@@ -594,23 +962,38 @@ export class Parser {
 
     // Expect ".."
     if (!this.match(TokenType.CURVE_TO)) {
-      return null
+      return { segment: null, toNodeName: null }
     }
 
     // End point
     const endToken = this.expect(TokenType.COORDINATE)
-    if (!endToken) return null
+    if (!endToken) return { segment: null, toNodeName: null }
     const end = parseCoordinateToken(endToken.value, this.coordSystem)
 
-    return new ASTNode(NodeType.CURVE_SEGMENT, {
-      from: fromPoint,
-      control1: control1.point,
-      control2: control2.point,
-      to: end.point
-    })
+    // Adjust endpoints for node references
+    let adjustedFrom = fromPoint
+    let adjustedTo = end.point
+    if (fromNodeName && end.nodeName) {
+      adjustedFrom = this.coordSystem.getNodeBoundaryPoint(fromNodeName, end.point)
+      adjustedTo = this.coordSystem.getNodeBoundaryPoint(end.nodeName, fromPoint)
+    } else if (fromNodeName) {
+      adjustedFrom = this.coordSystem.getNodeBoundaryPoint(fromNodeName, end.point)
+    } else if (end.nodeName) {
+      adjustedTo = this.coordSystem.getNodeBoundaryPoint(end.nodeName, fromPoint)
+    }
+
+    return {
+      segment: new ASTNode(NodeType.CURVE_SEGMENT, {
+        from: adjustedFrom,
+        control1: control1.point,
+        control2: control2.point,
+        to: adjustedTo
+      }),
+      toNodeName: end.nodeName
+    }
   }
 
-  parseToOperation(fromPoint) {
+  parseToOperation(fromPoint, fromNodeName = null) {
     this.advance() // consume "to"
 
     const options = this.parseOptionsBlock()
@@ -632,40 +1015,60 @@ export class Parser {
     }
 
     const coordToken = this.expect(TokenType.COORDINATE)
-    if (!coordToken) return null
+    if (!coordToken) return { segment: null, toNodeName: null }
 
     coordValue += coordToken.value
     const result = parseCoordinateToken(coordValue, this.coordSystem)
 
+    // Adjust endpoints for node references
+    let adjustedFrom = fromPoint
+    let adjustedTo = result.point
+    if (fromNodeName && result.nodeName) {
+      adjustedFrom = this.coordSystem.getNodeBoundaryPoint(fromNodeName, result.point)
+      adjustedTo = this.coordSystem.getNodeBoundaryPoint(result.nodeName, fromPoint)
+    } else if (fromNodeName) {
+      adjustedFrom = this.coordSystem.getNodeBoundaryPoint(fromNodeName, result.point)
+    } else if (result.nodeName) {
+      adjustedTo = this.coordSystem.getNodeBoundaryPoint(result.nodeName, fromPoint)
+    }
+
     if (outAngle !== null && inAngle !== null) {
       // Curved path
       const distance = Math.sqrt(
-        Math.pow(result.point.x - fromPoint.x, 2) +
-        Math.pow(result.point.y - fromPoint.y, 2)
+        Math.pow(adjustedTo.x - adjustedFrom.x, 2) +
+        Math.pow(adjustedTo.y - adjustedFrom.y, 2)
       ) / 3
 
       const control1 = new Point(
-        fromPoint.x + distance * Math.cos(outAngle * Math.PI / 180),
-        fromPoint.y + distance * Math.sin(outAngle * Math.PI / 180)
+        adjustedFrom.x + distance * Math.cos(outAngle * Math.PI / 180),
+        adjustedFrom.y + distance * Math.sin(outAngle * Math.PI / 180)
       )
       const control2 = new Point(
-        result.point.x + distance * Math.cos(inAngle * Math.PI / 180),
-        result.point.y + distance * Math.sin(inAngle * Math.PI / 180)
+        adjustedTo.x + distance * Math.cos(inAngle * Math.PI / 180),
+        adjustedTo.y + distance * Math.sin(inAngle * Math.PI / 180)
       )
 
-      return new ASTNode(NodeType.CURVE_SEGMENT, {
-        from: fromPoint,
-        control1,
-        control2,
-        to: result.point
-      })
+      return {
+        segment: new ASTNode(NodeType.CURVE_SEGMENT, {
+          from: adjustedFrom,
+          control1,
+          control2,
+          to: adjustedTo
+        }),
+        toNodeName: result.nodeName
+      }
     }
 
-    return new ASTNode(NodeType.LINE_SEGMENT, {
-      from: fromPoint,
-      to: result.point,
-      options
-    })
+    return {
+      segment: new ASTNode(NodeType.LINE_SEGMENT, {
+        from: adjustedFrom,
+        to: adjustedTo,
+        options,
+        fromNodeName,
+        toNodeName: result.nodeName
+      }),
+      toNodeName: result.nodeName
+    }
   }
 
   parseCircle(fromPoint) {
@@ -817,7 +1220,6 @@ export class Parser {
     this.advance() // consume "node"
 
     const options = this.parseOptionsBlock()
-    const nodeOptions = this.parseNodeOptions(options)
     const style = parseOptions(options)
 
     // Parse optional name
@@ -835,6 +1237,9 @@ export class Parser {
       text = this.advance().value
     }
 
+    // Parse node options (pass text for dimension estimation)
+    const nodeOptions = this.parseNodeOptions(options, text)
+
     // Register the node
     if (name) {
       const anchors = this.coordSystem.calculateAnchors(
@@ -843,7 +1248,7 @@ export class Parser {
         nodeOptions.width,
         nodeOptions.height
       )
-      this.coordSystem.registerNode(name, fromPoint, anchors)
+      this.coordSystem.registerNode(name, fromPoint, anchors, nodeOptions.shape, nodeOptions.width, nodeOptions.height)
     }
 
     return new ASTNode(NodeType.NODE, {

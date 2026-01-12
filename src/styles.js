@@ -241,8 +241,14 @@ export function parseOptions(options, baseStyle = null, scale = 1) {
     switch (key) {
       // Colors
       case "color":
+        style.stroke = parseColor(value) || style.stroke
+        break
       case "draw":
-        style.stroke = parseColor(value || key) || style.stroke
+        // "draw" without value is a flag, "draw=color" sets stroke color
+        if (value) {
+          style.stroke = parseColor(value) || style.stroke
+        }
+        // Otherwise just keep the default stroke color (black)
         break
       case "fill":
         style.fill = parseColor(value) || "currentColor"
@@ -297,7 +303,35 @@ export function parseOptions(options, baseStyle = null, scale = 1) {
         style.lineJoin = value
         break
       case "rounded corners":
-        style.roundedCorners = value ? parseFloat(value) : 5
+        // Parse value with unit, default to reasonable rounding (about 3mm)
+        if (value) {
+          const numMatch = value.match(/^(-?\d+\.?\d*)(pt|px|mm|cm|em)?$/)
+          if (numMatch) {
+            let num = parseFloat(numMatch[1])
+            const unit = numMatch[2] || "pt"
+            // Convert to cm (our internal unit)
+            switch (unit) {
+              case "pt":
+                num *= 0.0353
+                break
+              case "mm":
+                num *= 0.1
+                break
+              case "px":
+                num *= 0.0264
+                break
+              case "em":
+                num *= 0.423
+                break
+              // cm is default
+            }
+            style.roundedCorners = num
+          } else {
+            style.roundedCorners = 0.1 // 1mm default
+          }
+        } else {
+          style.roundedCorners = 0.1 // 1mm default
+        }
         break
       case "sharp corners":
         style.roundedCorners = 0
@@ -310,15 +344,25 @@ export function parseOptions(options, baseStyle = null, scale = 1) {
       case "-to":
         style.arrowEnd = key.slice(1)
         break
+      case "-Latex":  // Capital L - TikZ arrows.meta library
+      case "-Stealth":
+        style.arrowEnd = key.slice(1).toLowerCase()
+        break
       case "<-":
       case "stealth-":
       case "latex-":
       case "to-":
         style.arrowStart = key.slice(0, -1)
         break
+      case "Latex-":  // Capital L - TikZ arrows.meta library
+      case "Stealth-":
+        style.arrowStart = key.slice(0, -1).toLowerCase()
+        break
       case "<->":
       case "stealth-stealth":
       case "latex-latex":
+      case "Latex-Latex":
+      case "Stealth-Stealth":
         style.arrowStart = ">"
         style.arrowEnd = ">"
         break
