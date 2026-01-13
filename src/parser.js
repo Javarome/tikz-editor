@@ -22,6 +22,7 @@ export const NodeType = {
   ELLIPSE: "ELLIPSE",
   RECTANGLE: "RECTANGLE",
   GRID: "GRID",
+  PLOT_SEGMENT: "PLOT_SEGMENT",
   CYCLE: "CYCLE"
 }
 
@@ -235,7 +236,10 @@ export class Parser {
 
     const options = this.parseOptionsBlock()
     const style = parseOptions(options)
+    // Store options temporarily for plot parsing
+    this.currentDrawOptions = options
     const segments = this.parsePath()
+    this.currentDrawOptions = null
 
     this.match(TokenType.SEMICOLON)
 
@@ -352,27 +356,35 @@ export class Parser {
       } else if (simpleDirections.includes(key)) {
         direction = key
         if (value) {
-          // Check for "of nodename" syntax
-          const ofMatch = value.match(/^of\s+([a-zA-Z_][a-zA-Z0-9_-]*)$/)
-          if (ofMatch) {
-            refNode = ofMatch[1]
+          // Check for "Xmm of nodename" syntax (distance + ref node)
+          const distOfMatch = value.match(/^(\d+\.?\d*)(mm|cm|pt|em)?\s+of\s+([a-zA-Z_][a-zA-Z0-9_-]*)$/)
+          if (distOfMatch) {
+            compoundDistances.vertical = this.parseDistance(distOfMatch[1] + (distOfMatch[2] || "mm"))
+            compoundDistances.horizontal = compoundDistances.vertical
+            refNode = distOfMatch[3]
           } else {
-            // Parse distance value
-            const dist = this.parseDistance(value)
-            if (dist !== null) {
-              switch (key) {
-                case "above":
-                  offsets.y = dist
-                  break
-                case "below":
-                  offsets.y = -dist
-                  break
-                case "right":
-                  offsets.x = dist
-                  break
-                case "left":
-                  offsets.x = -dist
-                  break
+            // Check for simple "of nodename" syntax
+            const ofMatch = value.match(/^of\s+([a-zA-Z_][a-zA-Z0-9_-]*)$/)
+            if (ofMatch) {
+              refNode = ofMatch[1]
+            } else {
+              // Parse distance value (no ref node)
+              const dist = this.parseDistance(value)
+              if (dist !== null) {
+                switch (key) {
+                  case "above":
+                    offsets.y = dist
+                    break
+                  case "below":
+                    offsets.y = -dist
+                    break
+                  case "right":
+                    offsets.x = dist
+                    break
+                  case "left":
+                    offsets.x = -dist
+                    break
+                }
               }
             }
           }
@@ -385,7 +397,8 @@ export class Parser {
       const node = this.coordSystem.nodes.get(refNode)
       if (node) {
         const refPoint = node.center
-        const dist = this.nodeDistance
+        // Use specified distance or fall back to nodeDistance
+        const dist = compoundDistances.vertical !== null ? compoundDistances.vertical : this.nodeDistance
         // Use anchors to get edge-to-edge distance (like TikZ positioning library)
         // Add extra spacing for the new node's half-height (approximate)
         const nodeHalfHeight = 0.8 // Approximate half-height of a typical node in cm
@@ -507,13 +520,13 @@ export class Parser {
           result.anchor = value
           break
         case "minimum width":
-          result.width = parseFloat(value) || 1
+          result.width = this.parseDistance(value) || 1
           break
         case "minimum height":
-          result.height = parseFloat(value) || 0.5
+          result.height = this.parseDistance(value) || 0.5
           break
         case "minimum size":
-          result.width = result.height = parseFloat(value) || 1
+          result.width = result.height = this.parseDistance(value) || 1
           break
         case "inner sep":
           result.innerSep = this.parseDistance(value) || 0.3333
@@ -769,6 +782,9 @@ export class Parser {
 
       case TokenType.GRID:
         return { segment: this.parseGrid(fromPoint), toNodeName: null }
+
+      case TokenType.PLOT:
+        return { segment: this.parsePlot(fromPoint), toNodeName: null }
 
       case TokenType.CYCLE:
         this.advance()
@@ -1263,6 +1279,112 @@ export class Parser {
       to: result.point,
       step
     })
+  }
+
+  parsePlot(fromPoint) {
+    this.advance() // consume "plot"
+
+    // Get domain and samples from draw command options
+    let domain = { min: 0, max: 1 }
+    let samples = 100
+
+    if (this.currentDrawOptions) {
+      for (const opt of this.currentDrawOptions) {
+        const [key, value] = this.parseOptionKeyValue(opt)
+        if (key === "domain" && value) {
+          const domainMatch = value.match(/^(-?\d+\.?\d*)\s*:\s*(-?\d+\.?\d*)$/)
+          if (domainMatch) {
+            domain.min = parseFloat(domainMatch[1])
+            domain.max = parseFloat(domainMatch[2])
+          }
+        } else if (key === "samples" && value) {
+          samples = parseInt(value)
+        }
+      }
+    }
+
+    // Parse the plot expression: (\x, {expression})
+    // The coordinate contains the variable and expression
+    let xVar = "\\x"
+    let expression = "0"
+
+    if (this.peek()?.type === TokenType.COORDINATE) {
+      const coordToken = this.advance()
+      const coordValue = coordToken.value
+
+      // Parse (\x, {expression}) format
+      // The expression might be wrapped in braces
+      const plotMatch = coordValue.match(/^(\\[a-z]+)\s*,\s*\{(.+)\}$/)
+      if (plotMatch) {
+        xVar = plotMatch[1]
+        expression = plotMatch[2]
+      } else {
+        // Try simpler format: (\x, expression)
+        const simpleMatch = coordValue.match(/^(\\[a-z]+)\s*,\s*(.+)$/)
+        if (simpleMatch) {
+          xVar = simpleMatch[1]
+          expression = simpleMatch[2]
+        }
+      }
+    }
+
+    // Generate points by evaluating the expression
+    const points = []
+    const step = (domain.max - domain.min) / (samples - 1)
+
+    for (let i = 0; i < samples; i++) {
+      const x = domain.min + i * step
+      const y = this.evaluateExpression(expression, xVar, x)
+      points.push(new Point(x, y))
+    }
+
+    return new ASTNode(NodeType.PLOT_SEGMENT, {
+      from: fromPoint,
+      points,
+      domain,
+      samples,
+      expression
+    })
+  }
+
+  /**
+   * Evaluate a mathematical expression with a variable
+   */
+  evaluateExpression(expression, variable, value) {
+    try {
+      // Replace the variable with its value
+      let expr = expression.replace(new RegExp(variable.replace("\\", "\\\\"), "g"), `(${value})`)
+
+      // Handle TikZ's 'r' suffix for radians (e.g., "2*pi*x r" means the result is in radians)
+      // In TikZ, sin(x r) means x is in radians, otherwise degrees
+      // We'll convert degrees to radians for trig functions
+      expr = expr.replace(/\s+r\b/g, "") // Remove 'r' suffix - we'll use radians
+
+      // Replace pi with Math.PI
+      expr = expr.replace(/\bpi\b/g, `(${Math.PI})`)
+
+      // Replace trig functions
+      expr = expr.replace(/\bsin\s*\(/g, "Math.sin(")
+      expr = expr.replace(/\bcos\s*\(/g, "Math.cos(")
+      expr = expr.replace(/\btan\s*\(/g, "Math.tan(")
+      expr = expr.replace(/\bsqrt\s*\(/g, "Math.sqrt(")
+      expr = expr.replace(/\babs\s*\(/g, "Math.abs(")
+      expr = expr.replace(/\bexp\s*\(/g, "Math.exp(")
+      expr = expr.replace(/\bln\s*\(/g, "Math.log(")
+      expr = expr.replace(/\blog\s*\(/g, "Math.log10(")
+      expr = expr.replace(/\bpow\s*\(/g, "Math.pow(")
+
+      // Handle exponentiation: x^2 -> Math.pow(x, 2)
+      expr = expr.replace(/\(([^)]+)\)\s*\^\s*(\d+\.?\d*|\([^)]+\))/g, "Math.pow($1, $2)")
+      expr = expr.replace(/(\d+\.?\d*)\s*\^\s*(\d+\.?\d*|\([^)]+\))/g, "Math.pow($1, $2)")
+
+      // Evaluate the expression
+      const result = Function(`"use strict"; return (${expr})`)()
+      return isNaN(result) || !isFinite(result) ? 0 : result
+    } catch (e) {
+      console.warn("Expression evaluation error:", e.message, "for:", expression)
+      return 0
+    }
   }
 
   parseInlineNode(fromPoint) {

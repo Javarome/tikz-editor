@@ -194,6 +194,12 @@ export class Renderer {
             updateBounds(labelX - 0.5, labelY - 1)
             updateBounds(labelX + 3, labelY + 1)
           }
+          // Include plot points
+          if (seg.points) {
+            for (const pt of seg.points) {
+              updateBounds(pt.x, pt.y)
+            }
+          }
         }
       }
     }
@@ -313,6 +319,24 @@ export class Renderer {
 
         case NodeType.GRID:
           elements.push(...this.renderGrid(segment, style, strokeColor))
+          break
+
+        case NodeType.PLOT_SEGMENT:
+          // Render plot as a series of line segments
+          if (segment.points && segment.points.length > 0) {
+            const firstPlotPoint = segment.points[0]
+            if (pathData === "") {
+              pathData += `M ${this.toSvgX(firstPlotPoint.x)} ${this.toSvgY(firstPlotPoint.y)} `
+              firstPoint = firstPlotPoint
+            } else {
+              pathData += `L ${this.toSvgX(firstPlotPoint.x)} ${this.toSvgY(firstPlotPoint.y)} `
+            }
+            for (let i = 1; i < segment.points.length; i++) {
+              const pt = segment.points[i]
+              pathData += `L ${this.toSvgX(pt.x)} ${this.toSvgY(pt.y)} `
+            }
+            currentPoint = segment.points[segment.points.length - 1]
+          }
           break
 
         case NodeType.CYCLE:
@@ -660,13 +684,22 @@ export class Renderer {
   }
 
   /**
-   * Parse node text, handling \\ line breaks and font commands
+   * Parse node text, handling \\ line breaks, font commands, and tabular environments
    */
   parseNodeText(text, defaultFontSize = null) {
     if (!text) return { lines: [] }
 
+    let processedText = text
+
+    // Handle tabular environment: \begin{tabular}{...}...\end{tabular}
+    // Extract the content and treat rows as lines
+    const tabularMatch = processedText.match(/\\begin\{tabular\}\{[^}]*\}([\s\S]*?)\\end\{tabular\}/)
+    if (tabularMatch) {
+      processedText = tabularMatch[1].trim()
+    }
+
     // Split by \\ (double backslash for line breaks)
-    const rawLines = text.split(/\\\\/)
+    const rawLines = processedText.split(/\\\\/)
     const lines = []
 
     for (const rawLine of rawLines) {
@@ -806,8 +839,10 @@ export class Renderer {
       .replace(/\\land/g, "∧")
       .replace(/\\lor/g, "∨")
 
-    // Handle \mathcal{...} - use script/calligraphic style
-    processed = processed.replace(/\\mathcal\{([^}]+)\}/g, "$1")
+    // Handle \mathcal{...} - convert to mathematical script characters
+    processed = processed.replace(/\\mathcal\{([^}]+)\}/g, (match, content) => {
+      return this.toMathCaligraphic(content)
+    })
 
     // Handle subscripts with \mathrm inside: _{\mathrm{...}}
     processed = processed.replace(/_\{\\mathrm\{([^}]+)\}\}/g, "\x00subrm:$1\x01")
@@ -934,6 +969,30 @@ export class Renderer {
     }
 
     return text.split("").map(c => superscriptMap[c.toLowerCase()] || c).join("")
+  }
+
+  /**
+   * Convert characters to mathematical calligraphic/script Unicode
+   */
+  toMathCaligraphic(text) {
+    // Mathematical Script capital letters (U+1D49C onwards, with exceptions)
+    const calMap = {
+      "A": "𝒜", "B": "ℬ", "C": "𝒞", "D": "𝒟", "E": "ℰ",
+      "F": "ℱ", "G": "𝒢", "H": "ℋ", "I": "ℐ", "J": "𝒥",
+      "K": "𝒦", "L": "ℒ", "M": "ℳ", "N": "𝒩", "O": "𝒪",
+      "P": "𝒫", "Q": "𝒬", "R": "ℛ", "S": "𝒮", "T": "𝒯",
+      "U": "𝒰", "V": "𝒱", "W": "𝒲", "X": "𝒳", "Y": "𝒴",
+      "Z": "𝒵",
+      // Lowercase script letters
+      "a": "𝒶", "b": "𝒷", "c": "𝒸", "d": "𝒹", "e": "ℯ",
+      "f": "𝒻", "g": "ℊ", "h": "𝒽", "i": "𝒾", "j": "𝒿",
+      "k": "𝓀", "l": "𝓁", "m": "𝓂", "n": "𝓃", "o": "ℴ",
+      "p": "𝓅", "q": "𝓆", "r": "𝓇", "s": "𝓈", "t": "𝓉",
+      "u": "𝓊", "v": "𝓋", "w": "𝓌", "x": "𝓍", "y": "𝓎",
+      "z": "𝓏"
+    }
+
+    return text.split("").map(c => calMap[c] || c).join("")
   }
 
   /**

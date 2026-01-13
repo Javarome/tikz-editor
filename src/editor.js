@@ -239,7 +239,12 @@ export const EXAMPLES = {
 
 \\node[box, below=of chi] (chieff) {$\\chi_{\\mathrm{eff}}$\\\\\\footnotesize factorisable regime};
 
-\\node[dashedbox, below=of chieff] (decomp) {$\\chi_{\\mathrm{eff}} \\simeq \\chi_{\\mathrm{eff}}^{(A)} \\otimes \\chi_{\\mathrm{eff}}^{(B)}$\\\\\\footnotesize (independent subsystems)};
+\\node[dashedbox, below=of chieff, minimum width=6.6cm] (decomp) {
+  \\begin{tabular}{c}
+    \\footnotesize $\\chi_{\\mathrm{eff}} \\simeq \\chi_{\\mathrm{eff}}^{(A)} \\otimes \\chi_{\\mathrm{eff}}^{(B)}$\\\\
+    \\footnotesize (independent subsystems)
+  \\end{tabular}
+};
 
 \\node[box, below left=10mm and 12mm of decomp] (obsA) {Local observables\\\\in subsystem $A$};
 \\node[box, below right=10mm and 12mm of decomp] (obsB) {Local observables\\\\in subsystem $B$};
@@ -249,6 +254,29 @@ export const EXAMPLES = {
 
 \\draw[arrow] (decomp) -- node[left=2mm, note] {operational\\\\projection $\\mathcal{O}_A$} (obsA);
 \\draw[arrow] (decomp) -- node[right=2mm, note] {operational\\\\projection $\\mathcal{O}_B$} (obsB);
+
+\\node[note, below=7mm of decomp, align=center] (compat)
+{\\footnotesize Compatible operational readings: joint assignment of local observables is well-defined.};
+
+\\end{tikzpicture}`,
+
+  wave: `% Wave with plot command
+\\begin{tikzpicture}[scale=1.1]
+
+% Axes
+\\draw[->] (-0.2,0) -- (6.5,0) node[right]{Space};
+\\draw[->] (0,-0.2) -- (0,3.5) node[above]{Time};
+
+% Wave
+\\draw[thick, blue, domain=0:6, samples=200]
+plot (\\x,{0.6*sin(2*pi*\\x/1.5 r) + 0.4*\\x/6});
+
+% Particle crest
+\\draw[red, thick] (3.2,1.3) circle (0.15);
+\\node[red, right] at (3.4,1.3) {Topological excitation};
+
+% Annotation
+\\node[blue] at (4.5,2.4) {effective $\\chi$ relaxation};
 
 \\end{tikzpicture}`
 }

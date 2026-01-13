@@ -18,6 +18,7 @@ export const TokenType = {
   ELLIPSE: "ELLIPSE",           // ellipse
   RECTANGLE: "RECTANGLE",       // rectangle
   GRID: "GRID",                 // grid
+  PLOT: "PLOT",                 // plot
   NODE: "NODE",                 // node (inline)
   AT: "AT",                     // at
   AND: "AND",                   // and
@@ -142,6 +143,7 @@ export class Lexer {
       "ellipse": TokenType.ELLIPSE,
       "rectangle": TokenType.RECTANGLE,
       "grid": TokenType.GRID,
+      "plot": TokenType.PLOT,
       "node": TokenType.NODE,
       "at": TokenType.AT,
       "and": TokenType.AND,
