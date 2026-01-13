@@ -278,6 +278,28 @@ plot (\\x,{0.6*sin(2*pi*\\x/1.5 r) + 0.4*\\x/6});
 % Annotation
 \\node[blue] at (4.5,2.4) {effective $\\chi$ relaxation};
 
+\\end{tikzpicture}`,
+
+  concentric: `% Concentric circles with foreach and snake decoration
+\\begin{tikzpicture}[scale=1]
+
+% Central mass
+\\filldraw[black] (0,0) circle (0.25);
+\\node[below] at (0,-0.35) {Localized projected configuration};
+
+% Effective ordering contours
+\\foreach \\r in {0.8,1.2,1.7,2.3} {
+  \\draw[blue!60] (0,0) circle (\\r);
+}
+
+% Distortion
+\\draw[blue, thick, decorate, decoration={snake, amplitude=0.5mm}]
+(0,0) circle (1.7);
+
+% Arrows
+\\draw[->, gray] (2.8,0) -- (1.8,0);
+\\node[right] at (2.8,0.2) {Reduced admissible ordering};
+
 \\end{tikzpicture}`
 }
 

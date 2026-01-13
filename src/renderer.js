@@ -153,10 +153,22 @@ export class Renderer {
       if (!node.position) return
       const x = node.position.x
       const y = node.position.y
-      // Use measured dimensions if available, otherwise fall back to node properties
+      // Use measured dimensions if available, otherwise estimate from text
       const metrics = node.name ? this.nodeMetrics.get(node.name) : null
-      const w = metrics ? metrics.width : (node.width || 1)
-      const h = metrics ? metrics.height : (node.height || 0.5)
+      let w, h
+      if (metrics) {
+        w = metrics.width
+        h = metrics.height
+      } else if (node.text) {
+        // Estimate dimensions from text length (rough approximation)
+        // Average character width ~0.12cm for serif font at default size
+        const textLen = node.text.replace(/\\[a-z]+/g, "").length
+        w = Math.max(node.width || 0, textLen * 0.12 + 0.3)
+        h = node.height || 0.5
+      } else {
+        w = node.width || 1
+        h = node.height || 0.5
+      }
       const anchor = node.anchor || "center"
 
       // Calculate actual bounds based on anchor
@@ -410,12 +422,71 @@ export class Renderer {
   }
 
   renderCircle(segment, style, doStroke, doFill, strokeColor) {
+    // Check for snake decoration
+    if (style.decorate && style.decoration?.type === "snake") {
+      return this.renderSnakeCircle(segment, style, doStroke, doFill, strokeColor)
+    }
+
     const circle = document.createElementNS(SVG_NS, "circle")
     circle.setAttribute("cx", this.toSvgX(segment.center.x))
     circle.setAttribute("cy", this.toSvgY(segment.center.y))
     circle.setAttribute("r", segment.radius * this.scale)
     this.applyStyle(circle, style, doStroke, doFill, strokeColor)
     return circle
+  }
+
+  /**
+   * Render a circle with snake (wavy) decoration
+   */
+  renderSnakeCircle(segment, style, doStroke, doFill, strokeColor) {
+    const cx = segment.center.x
+    const cy = segment.center.y
+    const r = segment.radius
+
+    // amplitude in cm (0.5mm = 0.05cm)
+    const amplitude = style.decoration?.amplitude || 0.05
+    // segment length in cm (default ~3mm = 0.3cm for snake)
+    const segmentLength = style.decoration?.segmentLength || 0.3
+
+    // Calculate circumference in cm
+    const circumference = 2 * Math.PI * r
+
+    // Number of complete waves around the circle
+    // Each wave is one segment length (half-wave = half segment)
+    const numWaves = Math.max(20, Math.round(circumference / segmentLength))
+
+    // High resolution for smooth curves
+    const pointsPerWave = 12
+    const numPoints = numWaves * pointsPerWave
+
+    // Generate wavy path
+    let pathData = ""
+    for (let i = 0; i <= numPoints; i++) {
+      const t = i / numPoints
+      const angle = t * 2 * Math.PI
+      // Wave oscillates with numWaves complete cycles
+      const wavePhase = t * numWaves * 2 * Math.PI
+      const waveOffset = amplitude * Math.sin(wavePhase)
+
+      // Point on the circle with radial perturbation
+      const px = cx + (r + waveOffset) * Math.cos(angle)
+      const py = cy + (r + waveOffset) * Math.sin(angle)
+
+      const svgX = this.toSvgX(px)
+      const svgY = this.toSvgY(py)
+
+      if (i === 0) {
+        pathData += `M ${svgX} ${svgY} `
+      } else {
+        pathData += `L ${svgX} ${svgY} `
+      }
+    }
+    pathData += "Z"
+
+    const path = document.createElementNS(SVG_NS, "path")
+    path.setAttribute("d", pathData)
+    this.applyStyle(path, style, doStroke, doFill, strokeColor)
+    return path
   }
 
   renderEllipse(segment, style, doStroke, doFill, strokeColor) {
@@ -1185,9 +1256,16 @@ export class Renderer {
     }
 
     // Fill
-    if (doFill && style.fill && style.fill !== "none") {
-      const fillColor = parseColor(style.fill)
-      element.setAttribute("fill", fillColor || style.fill)
+    if (doFill) {
+      // Use explicit fill color if set, otherwise use stroke color for filldraw
+      let fillColor
+      if (style.fill && style.fill !== "none") {
+        fillColor = parseColor(style.fill) || style.fill
+      } else {
+        // For filldraw with only a color specified, use that color for fill
+        fillColor = strokeColor
+      }
+      element.setAttribute("fill", fillColor)
 
       if (style.fillOpacity !== undefined && style.fillOpacity !== 1) {
         element.setAttribute("fill-opacity", style.fillOpacity)

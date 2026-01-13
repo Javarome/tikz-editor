@@ -80,7 +80,12 @@ export class Parser {
       try {
         const command = this.parseCommand()
         if (command) {
-          document.commands.push(command)
+          // Handle foreach results (multiple commands)
+          if (command.type === "FOREACH_RESULT") {
+            document.commands.push(...command.commands)
+          } else {
+            document.commands.push(command)
+          }
         }
       } catch (e) {
         this.errors.push({
@@ -124,6 +129,8 @@ export class Parser {
         return this.parseBegin()
       case "\\end":
         return this.parseEnd()
+      case "\\foreach":
+        return this.parseForeach()
       default:
         // Unknown command, skip
         this.advance()
@@ -156,6 +163,78 @@ export class Parser {
     }
 
     return null // \end doesn't produce an AST node
+  }
+
+  /**
+   * Parse \foreach loop: \foreach \var in {values} { body }
+   * Returns an array of commands (one for each iteration)
+   */
+  parseForeach() {
+    this.advance() // consume \foreach
+
+    // Parse variable name (e.g., \r, \x, \i)
+    let varName = null
+    if (this.peek()?.type === TokenType.COMMAND) {
+      varName = this.advance().value // e.g., "\r"
+    } else {
+      this.addError("Expected variable name after \\foreach")
+      return null
+    }
+
+    // Expect "in" keyword
+    if (this.peek()?.type !== TokenType.IDENTIFIER || this.peek()?.value !== "in") {
+      this.addError("Expected 'in' after foreach variable")
+      return null
+    }
+    this.advance() // consume "in"
+
+    // Parse values list: {0.8, 1.2, 1.7, 2.3}
+    const values = []
+    if (this.peek()?.type === TokenType.STRING) {
+      const valuesStr = this.advance().value
+      // Split by comma and parse each value
+      const parts = valuesStr.split(",")
+      for (const part of parts) {
+        const trimmed = part.trim()
+        if (trimmed) {
+          // Check if it's a number
+          const num = parseFloat(trimmed)
+          if (!isNaN(num)) {
+            values.push(num)
+          } else {
+            values.push(trimmed)
+          }
+        }
+      }
+    }
+
+    // Parse body: { commands }
+    let bodyStr = ""
+    if (this.peek()?.type === TokenType.STRING) {
+      bodyStr = this.advance().value
+    }
+
+    // Execute loop: parse body for each value
+    const commands = []
+    for (const value of values) {
+      // Substitute variable in body
+      const substituted = bodyStr.replace(new RegExp(varName.replace("\\", "\\\\"), "g"), String(value))
+
+      // Parse the substituted body
+      const subParser = new Parser(substituted)
+      subParser.coordSystem = this.coordSystem
+      subParser.styles = this.styles
+      subParser.nodeDistance = this.nodeDistance
+
+      const result = subParser.parse()
+      if (result.ast && result.ast.commands) {
+        commands.push(...result.ast.commands)
+      }
+    }
+
+    // Return commands as a special "multi-command" result
+    // We'll handle this in the main parse loop
+    return { type: "FOREACH_RESULT", commands }
   }
 
   parsePictureOptions(options) {

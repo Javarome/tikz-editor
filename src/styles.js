@@ -218,6 +218,8 @@ export class Style {
     this.arrowStart = null
     this.arrowEnd = null
     this.transformations = []
+    this.decorate = false
+    this.decoration = null     // { type: "snake", amplitude: 0.5, segment: 5 }
   }
 
   clone() {
@@ -225,6 +227,7 @@ export class Style {
     Object.assign(style, this)
     style.dashPattern = this.dashPattern ? [...this.dashPattern] : null
     style.transformations = [...this.transformations]
+    style.decoration = this.decoration ? { ...this.decoration } : null
     return style
   }
 }
@@ -406,6 +409,46 @@ export function parseOptions(options, baseStyle = null, scale = 1) {
         break
       case "yscale":
         style.transformations.push({ type: "yscale", factor: parseFloat(value) })
+        break
+
+      // Decorations
+      case "decorate":
+        style.decorate = true
+        break
+      case "decoration":
+        // Parse decoration={snake, amplitude=0.5mm, segment length=5mm}
+        if (value) {
+          const decoration = { type: "snake", amplitude: 0.5, segmentLength: 5 }
+          // Remove braces if present
+          const cleanValue = value.replace(/^\{|\}$/g, "")
+          const parts = cleanValue.split(",").map(p => p.trim())
+          for (const part of parts) {
+            if (part === "snake" || part === "zigzag" || part === "coil") {
+              decoration.type = part
+            } else if (part.startsWith("amplitude")) {
+              const match = part.match(/amplitude\s*=\s*(-?\d+\.?\d*)(mm|cm|pt)?/)
+              if (match) {
+                let amp = parseFloat(match[1])
+                const unit = match[2] || "mm"
+                if (unit === "mm") amp *= 0.1
+                else if (unit === "cm") amp *= 1
+                else if (unit === "pt") amp *= 0.0353
+                decoration.amplitude = amp
+              }
+            } else if (part.startsWith("segment length")) {
+              const match = part.match(/segment\s+length\s*=\s*(\d+\.?\d*)(mm|cm|pt)?/)
+              if (match) {
+                let len = parseFloat(match[1])
+                const unit = match[2] || "mm"
+                if (unit === "mm") len *= 0.1
+                else if (unit === "cm") len *= 1
+                else if (unit === "pt") len *= 0.0353
+                decoration.segmentLength = len
+              }
+            }
+          }
+          style.decoration = decoration
+        }
         break
 
       // Handle bare color names
