@@ -5,11 +5,9 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    no
     "build": "vite build",
     "preview": "vite preview"
   },
-  o
   "private": true,
   "devDependencies": {
     "vite": "^6.0.0"
