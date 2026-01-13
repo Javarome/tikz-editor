@@ -585,7 +585,7 @@ export class Renderer {
 
   renderNode(node) {
     const elements = []
-    const { position, text, shape, width, height, innerSep, draw, fill, style, align, fontSize, anchor } = node
+    const { position, text, shape, width, height, innerSep, draw, fill, style, align, fontSize, anchor, rotate } = node
 
     // Parse text lines and font sizes (use node's fontSize as default if provided)
     const { lines } = this.parseNodeText(text, fontSize)
@@ -680,7 +680,13 @@ export class Renderer {
     }
 
     const group = document.createElementNS(SVG_NS, "g")
-    group.setAttribute("transform", `translate(${this.toSvgX(position.x) + anchorOffsetX}, ${this.toSvgY(position.y) + anchorOffsetY})`)
+    // Apply translation and optional rotation
+    let transform = `translate(${this.toSvgX(position.x) + anchorOffsetX}, ${this.toSvgY(position.y) + anchorOffsetY})`
+    if (rotate) {
+      // TikZ rotation is counter-clockwise, SVG is clockwise, so negate the angle
+      transform += ` rotate(${-rotate})`
+    }
+    group.setAttribute("transform", transform)
 
     // Draw shape if needed
     if (draw || fill) {

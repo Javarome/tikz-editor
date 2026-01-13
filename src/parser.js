@@ -167,42 +167,59 @@ export class Parser {
 
   /**
    * Parse \foreach loop: \foreach \var in {values} { body }
+   * Also supports multi-variable: \foreach \x/\y in {a/b, c/d} { body }
    * Returns an array of commands (one for each iteration)
    */
   parseForeach() {
     this.advance() // consume \foreach
 
-    // Parse variable name (e.g., \r, \x, \i)
-    let varName = null
-    if (this.peek()?.type === TokenType.COMMAND) {
-      varName = this.advance().value // e.g., "\r"
-    } else {
-      this.addError("Expected variable name after \\foreach")
+    // Parse variable name(s) (e.g., \r, \x, or \x/\y for multi-variable)
+    const varNames = []
+    while (this.peek()?.type === TokenType.COMMAND) {
+      varNames.push(this.advance().value) // e.g., "\x"
+      // Check for slash separator for multi-variable
+      if (this.peek()?.type === TokenType.SLASH) {
+        this.advance() // consume /
+      } else {
+        break
+      }
+    }
+
+    if (varNames.length === 0) {
+      this.errors.push({
+        message: "Expected variable name after \\foreach",
+        position: this.peek()?.position || { line: 0, column: 0 }
+      })
       return null
     }
 
     // Expect "in" keyword
     if (this.peek()?.type !== TokenType.IDENTIFIER || this.peek()?.value !== "in") {
-      this.addError("Expected 'in' after foreach variable")
+      this.errors.push({
+        message: "Expected 'in' after foreach variable",
+        position: this.peek()?.position || { line: 0, column: 0 }
+      })
       return null
     }
     this.advance() // consume "in"
 
-    // Parse values list: {0.8, 1.2, 1.7, 2.3}
+    // Parse values list: {0.8, 1.2, ...} or {a/b, c/d, ...} for multi-variable
     const values = []
     if (this.peek()?.type === TokenType.STRING) {
       const valuesStr = this.advance().value
-      // Split by comma and parse each value
+      // Split by comma and parse each value (or value tuple)
       const parts = valuesStr.split(",")
       for (const part of parts) {
         const trimmed = part.trim()
         if (trimmed) {
-          // Check if it's a number
-          const num = parseFloat(trimmed)
-          if (!isNaN(num)) {
-            values.push(num)
+          if (varNames.length > 1) {
+            // Multi-variable: split by /
+            const subParts = trimmed.split("/").map(s => s.trim())
+            values.push(subParts)
           } else {
-            values.push(trimmed)
+            // Single variable
+            const num = parseFloat(trimmed)
+            values.push(!isNaN(num) ? num : trimmed)
           }
         }
       }
@@ -217,8 +234,19 @@ export class Parser {
     // Execute loop: parse body for each value
     const commands = []
     for (const value of values) {
-      // Substitute variable in body
-      const substituted = bodyStr.replace(new RegExp(varName.replace("\\", "\\\\"), "g"), String(value))
+      let substituted = bodyStr
+
+      if (varNames.length > 1 && Array.isArray(value)) {
+        // Multi-variable substitution
+        for (let i = 0; i < varNames.length && i < value.length; i++) {
+          const varRegex = new RegExp(varNames[i].replace("\\", "\\\\"), "g")
+          substituted = substituted.replace(varRegex, String(value[i]))
+        }
+      } else {
+        // Single variable substitution
+        const varRegex = new RegExp(varNames[0].replace("\\", "\\\\"), "g")
+        substituted = substituted.replace(varRegex, String(value))
+      }
 
       // Parse the substituted body
       const subParser = new Parser(substituted)
@@ -233,7 +261,6 @@ export class Parser {
     }
 
     // Return commands as a special "multi-command" result
-    // We'll handle this in the main parse loop
     return { type: "FOREACH_RESULT", commands }
   }
 
@@ -625,6 +652,9 @@ export class Parser {
         case "font":
           // Parse font size commands
           result.fontSize = this.parseFontSize(value)
+          break
+        case "rotate":
+          result.rotate = parseFloat(value) || 0
           break
         case "above":
         case "below":
