@@ -148,17 +148,66 @@ export class Renderer {
       maxY = Math.max(maxY, y)
     }
 
-    // Helper to update bounds for a node with its full extent
+    // Helper to update bounds for a node with its full extent, accounting for anchor
     const updateNodeBounds = (node) => {
       if (!node.position) return
       const x = node.position.x
       const y = node.position.y
       // Use measured dimensions if available, otherwise fall back to node properties
       const metrics = node.name ? this.nodeMetrics.get(node.name) : null
-      const hw = (metrics ? metrics.width : (node.width || 1)) / 2
-      const hh = (metrics ? metrics.height : (node.height || 0.5)) / 2
-      updateBounds(x - hw, y - hh)
-      updateBounds(x + hw, y + hh)
+      const w = metrics ? metrics.width : (node.width || 1)
+      const h = metrics ? metrics.height : (node.height || 0.5)
+      const anchor = node.anchor || "center"
+
+      // Calculate actual bounds based on anchor
+      let minNodeX = x - w / 2, maxNodeX = x + w / 2
+      let minNodeY = y - h / 2, maxNodeY = y + h / 2
+
+      switch (anchor) {
+        case "west":
+          minNodeX = x
+          maxNodeX = x + w
+          break
+        case "east":
+          minNodeX = x - w
+          maxNodeX = x
+          break
+        case "north":
+          minNodeY = y - h
+          maxNodeY = y
+          break
+        case "south":
+          minNodeY = y
+          maxNodeY = y + h
+          break
+        case "north west":
+          minNodeX = x
+          maxNodeX = x + w
+          minNodeY = y - h
+          maxNodeY = y
+          break
+        case "north east":
+          minNodeX = x - w
+          maxNodeX = x
+          minNodeY = y - h
+          maxNodeY = y
+          break
+        case "south west":
+          minNodeX = x
+          maxNodeX = x + w
+          minNodeY = y
+          maxNodeY = y + h
+          break
+        case "south east":
+          minNodeX = x - w
+          maxNodeX = x
+          minNodeY = y
+          maxNodeY = y + h
+          break
+      }
+
+      updateBounds(minNodeX, minNodeY)
+      updateBounds(maxNodeX, maxNodeY)
     }
 
     for (const command of ast.commands) {
@@ -465,10 +514,7 @@ export class Renderer {
 
   renderNode(node) {
     const elements = []
-    const { position, text, shape, width, height, innerSep, draw, fill, style, align, fontSize } = node
-
-    const group = document.createElementNS(SVG_NS, "g")
-    group.setAttribute("transform", `translate(${this.toSvgX(position.x)}, ${this.toSvgY(position.y)}) `)
+    const { position, text, shape, width, height, innerSep, draw, fill, style, align, fontSize, anchor } = node
 
     // Parse text lines and font sizes (use node's fontSize as default if provided)
     const { lines } = this.parseNodeText(text, fontSize)
@@ -512,6 +558,58 @@ export class Renderer {
     const textHeight = textBBox.height + innerSep * 2 * this.scale
     const nodeWidth = Math.max(width * this.scale, textWidth)
     const nodeHeight = Math.max(height * this.scale, textHeight)
+
+    // Calculate anchor offset - position the anchor point of the node at the given position
+    // For text-only nodes, use smaller offsets (just text bounds + small gap)
+    // For nodes with shapes, use full node dimensions
+    let anchorOffsetX = 0
+    let anchorOffsetY = 0
+    const nodeAnchor = anchor || "center"
+    const hasShape = draw || fill
+
+    // Use text dimensions for text-only nodes, node dimensions for shaped nodes
+    const anchorWidth = hasShape ? nodeWidth : textBBox.width
+    const anchorHeight = hasShape ? nodeHeight : textBBox.height
+    const smallGap = 3 * this.fontScale  // Small gap between text and anchor point
+
+    switch (nodeAnchor) {
+      case "west":
+        // West (left) side at position - move node right
+        anchorOffsetX = anchorWidth / 2 + (hasShape ? 0 : smallGap)
+        break
+      case "east":
+        // East (right) side at position - move node left
+        anchorOffsetX = -(anchorWidth / 2 + (hasShape ? 0 : smallGap))
+        break
+      case "north":
+        // North (top) side at position - move node down (positive in SVG)
+        anchorOffsetY = anchorHeight / 2 + (hasShape ? 0 : smallGap)
+        break
+      case "south":
+        // South (bottom) side at position - move node up (negative in SVG)
+        anchorOffsetY = -(anchorHeight / 2 + (hasShape ? 0 : smallGap))
+        break
+      case "north west":
+        anchorOffsetX = anchorWidth / 2 + (hasShape ? 0 : smallGap)
+        anchorOffsetY = anchorHeight / 2 + (hasShape ? 0 : smallGap)
+        break
+      case "north east":
+        anchorOffsetX = -(anchorWidth / 2 + (hasShape ? 0 : smallGap))
+        anchorOffsetY = anchorHeight / 2 + (hasShape ? 0 : smallGap)
+        break
+      case "south west":
+        anchorOffsetX = anchorWidth / 2 + (hasShape ? 0 : smallGap)
+        anchorOffsetY = -(anchorHeight / 2 + (hasShape ? 0 : smallGap))
+        break
+      case "south east":
+        anchorOffsetX = -(anchorWidth / 2 + (hasShape ? 0 : smallGap))
+        anchorOffsetY = -(anchorHeight / 2 + (hasShape ? 0 : smallGap))
+        break
+      // "center" - no offset needed
+    }
+
+    const group = document.createElementNS(SVG_NS, "g")
+    group.setAttribute("transform", `translate(${this.toSvgX(position.x) + anchorOffsetX}, ${this.toSvgY(position.y) + anchorOffsetY})`)
 
     // Draw shape if needed
     if (draw || fill) {
