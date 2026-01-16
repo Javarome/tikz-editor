@@ -302,33 +302,6 @@ plot (\\x,{0.6*sin(2*pi*\\x/1.5 r) + 0.4*\\x/6});
 
 \\end{tikzpicture}`,
 
-  horizon: `% Horizon diagram with nested foreach
-\\begin{tikzpicture}[scale=0.8]
-
-% Grid of colored squares using multi-variable foreach
-\\foreach \\x/\\y in {0/0, 0.3/0, 0.6/0, 0/0.3, 0.3/0.3, 0.6/0.3} {
-  \\fill[orange!70] (\\x,\\y) rectangle ++(0.18,0.18);
-}
-
-% Rotated label
-\\node[rotate=90, anchor=west] at (-0.3,0.1) {Time};
-
-% Horizon line
-\\draw[thick] (0,0.5) -- (1.5,0.5);
-
-% Region labels
-\\node[right] at (1.6,0.7) {Region I};
-\\node[right] at (1.6,0.3) {Region II};
-
-% Arrows
-\\draw[->, thick] (0.4,0.8) -- (0.4,1.2);
-\\draw[->, thick] (1.0,0.2) -- (1.0,-0.2);
-
-% Bezier curve decoration
-\\draw[blue, thick] (0,0) .. controls (0.5,0.3) and (1.0,0.3) .. (1.5,0);
-
-\\end{tikzpicture}`,
-
   projection: `% Projection saturation diagram
 \\begin{tikzpicture}[font=\\small]
 
