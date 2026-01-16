@@ -1026,89 +1026,94 @@ export class Renderer {
       return this.toMathCaligraphic(content)
     })
 
-    // Handle subscripts with \mathrm inside: _{\mathrm{...}}
-    processed = processed.replace(/_\{\\mathrm\{([^}]+)\}\}/g, "\x00subrm:$1\x01")
+    // First, replace \mathrm{...} with a temporary marker to simplify subscript handling
+    // Use a placeholder that won't interfere with subscript parsing
+    const mathrmBlocks = []
+    processed = processed.replace(/\\mathrm\{([^}]+)\}/g, (match, content) => {
+      mathrmBlocks.push(content)
+      return `\x02RM${mathrmBlocks.length - 1}\x02`
+    })
 
-    // Handle superscripts with \mathrm inside: ^{\mathrm{...}}
-    processed = processed.replace(/\^\{\\mathrm\{([^}]+)\}\}/g, "\x00suprm:$1\x01")
-
-    // Handle \mathrm{...} - mark for non-italic rendering
-    processed = processed.replace(/\\mathrm\{([^}]+)\}/g, "\x00mathrm:$1\x01")
-
-    // Handle subscripts: _{...} or _x - mark for later
+    // Handle subscripts: _{...} or _x
     processed = processed.replace(/_\{([^}]+)\}/g, "\x00sub:$1\x01")
     processed = processed.replace(/_([a-zA-Z0-9])/g, "\x00sub:$1\x01")
 
-    // Handle superscripts: ^{...} or ^x - mark for later
+    // Handle superscripts: ^{...} or ^x
     processed = processed.replace(/\^\{([^}]+)\}/g, "\x00sup:$1\x01")
     processed = processed.replace(/\^([a-zA-Z0-9])/g, "\x00sup:$1\x01")
 
+    // Restore \mathrm blocks as markers
+    processed = processed.replace(/\x02RM(\d+)\x02/g, (match, index) => {
+      return `\x00mathrm:${mathrmBlocks[parseInt(index)]}\x01`
+    })
+
+    // Helper to process text that may contain mathrm markers
+    const processContent = (text, parentSpan, defaultStyle) => {
+      const mathrmRegex = /\x00mathrm:([^\x01]+)\x01/g
+      let idx = 0
+      let m
+      while ((m = mathrmRegex.exec(text)) !== null) {
+        // Add text before mathrm
+        if (m.index > idx) {
+          const span = document.createElementNS(SVG_NS, "tspan")
+          span.setAttribute("font-style", defaultStyle)
+          span.textContent = text.slice(idx, m.index)
+          parentSpan.appendChild(span)
+        }
+        // Add mathrm content (roman)
+        const rmSpan = document.createElementNS(SVG_NS, "tspan")
+        rmSpan.setAttribute("font-style", "normal")
+        rmSpan.textContent = m[1]
+        parentSpan.appendChild(rmSpan)
+        idx = m.index + m[0].length
+      }
+      // Add remaining text
+      if (idx < text.length) {
+        const span = document.createElementNS(SVG_NS, "tspan")
+        span.setAttribute("font-style", defaultStyle)
+        span.textContent = text.slice(idx)
+        parentSpan.appendChild(span)
+      }
+    }
+
     // Now parse and build the SVG structure
-    const regex = /\x00(mathrm|subrm|suprm|sub|sup):([^\x01]+)\x01/g
+    const regex = /\x00(sub|sup):([^\x01]*(?:\x00mathrm:[^\x01]*\x01[^\x01]*)*)\x01/g
     let lastIndex = 0
     let match
 
     while ((match = regex.exec(processed)) !== null) {
-      // Add text before this match (italic, as it's math mode)
+      // Add text before this match (may contain mathrm markers)
       if (match.index > lastIndex) {
-        const textSpan = document.createElementNS(SVG_NS, "tspan")
-        textSpan.setAttribute("font-style", "italic")
-        textSpan.textContent = processed.slice(lastIndex, match.index)
-        container.appendChild(textSpan)
+        const beforeText = processed.slice(lastIndex, match.index)
+        processContent(beforeText, container, "italic")
       }
 
       const type = match[1]
       const content = match[2]
 
-      if (type === "mathrm") {
-        // Roman (non-italic) text
-        const rmSpan = document.createElementNS(SVG_NS, "tspan")
-        rmSpan.setAttribute("font-style", "normal")
-        rmSpan.textContent = content
-        container.appendChild(rmSpan)
-      } else if (type === "subrm") {
-        // Subscript with roman (non-italic) text
+      if (type === "sub") {
+        // Subscript - may contain mathrm markers
         const subSpan = document.createElementNS(SVG_NS, "tspan")
         subSpan.setAttribute("baseline-shift", "sub")
         subSpan.setAttribute("font-size", "70%")
-        subSpan.setAttribute("font-style", "normal")
-        subSpan.textContent = content
-        container.appendChild(subSpan)
-      } else if (type === "suprm") {
-        // Superscript with roman (non-italic) text
-        const supSpan = document.createElementNS(SVG_NS, "tspan")
-        supSpan.setAttribute("baseline-shift", "super")
-        supSpan.setAttribute("font-size", "70%")
-        supSpan.setAttribute("font-style", "normal")
-        supSpan.textContent = content
-        container.appendChild(supSpan)
-      } else if (type === "sub") {
-        // Subscript using baseline-shift and smaller font
-        const subSpan = document.createElementNS(SVG_NS, "tspan")
-        subSpan.setAttribute("baseline-shift", "sub")
-        subSpan.setAttribute("font-size", "70%")
-        subSpan.setAttribute("font-style", "italic")
-        subSpan.textContent = content
+        processContent(content, subSpan, "italic")
         container.appendChild(subSpan)
       } else if (type === "sup") {
-        // Superscript using baseline-shift and smaller font
+        // Superscript - may contain mathrm markers
         const supSpan = document.createElementNS(SVG_NS, "tspan")
         supSpan.setAttribute("baseline-shift", "super")
         supSpan.setAttribute("font-size", "70%")
-        supSpan.setAttribute("font-style", "italic")
-        supSpan.textContent = content
+        processContent(content, supSpan, "italic")
         container.appendChild(supSpan)
       }
 
       lastIndex = match.index + match[0].length
     }
 
-    // Add remaining text (italic)
+    // Add remaining text (may contain mathrm markers)
     if (lastIndex < processed.length) {
-      const textSpan = document.createElementNS(SVG_NS, "tspan")
-      textSpan.setAttribute("font-style", "italic")
-      textSpan.textContent = processed.slice(lastIndex)
-      container.appendChild(textSpan)
+      const remainingText = processed.slice(lastIndex)
+      processContent(remainingText, container, "italic")
     }
 
     return container

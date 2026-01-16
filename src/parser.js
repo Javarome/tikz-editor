@@ -1098,22 +1098,22 @@ export class Parser {
           position.pos = 1
           break
         case "above":
-          position.offset.y = this.parseDistance(value) || 0.15
+          position.offset.y = this.parseDistance(value) || 0.4
           position.anchor = "south"
           position.align = "center"
           break
         case "below":
-          position.offset.y = -(this.parseDistance(value) || 0.15)
+          position.offset.y = -(this.parseDistance(value) || 0.4)
           position.anchor = "north"
           position.align = "center"
           break
         case "left":
-          position.offset.x = -(this.parseDistance(value) || 0.15)
+          position.offset.x = -(this.parseDistance(value) || 0.4)
           position.anchor = "east"
           position.align = "right" // Text aligned to the right (ends at anchor)
           break
         case "right":
-          position.offset.x = this.parseDistance(value) || 0.15
+          position.offset.x = this.parseDistance(value) || 0.4
           position.anchor = "west"
           position.align = "left" // Text aligned to the left (starts from anchor)
           break
