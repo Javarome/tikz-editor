@@ -1077,7 +1077,8 @@ export class Renderer {
     }
 
     // Now parse and build the SVG structure
-    const regex = /\x00(sub|sup):([^\x01]*(?:\x00mathrm:[^\x01]*\x01[^\x01]*)*)\x01/g
+    // Regex matches sub/sup markers, capturing content that may include nested mathrm markers
+    const regex = /\x00(sub|sup):((?:[^\x00\x01]|\x00mathrm:[^\x01]*\x01)*)\x01/g
     let lastIndex = 0
     let match
 
