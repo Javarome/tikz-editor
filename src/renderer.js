@@ -879,6 +879,10 @@ export class Renderer {
 
     for (const rawLine of rawLines) {
       let content = rawLine.trim()
+
+      // Strip LaTeX vertical spacing commands like [-2pt] or [5mm] at start of line
+      content = content.replace(/^\[-?\d+\.?\d*(pt|mm|cm|ex|em)?\]\s*/i, "")
+
       let baseFontSize = defaultFontSize || 14
 
       // Check for font size commands (these override the default)
@@ -984,6 +988,9 @@ export class Renderer {
       .replace(/\\Psi/g, "Ψ")
       .replace(/\\Omega/g, "Ω")
       .replace(/\\infty/g, "∞")
+      .replace(/\\sum/g, "∑")
+      .replace(/\\prod/g, "∏")
+      .replace(/\\int/g, "∫")
       .replace(/\\partial/g, "∂")
       .replace(/\\nabla/g, "∇")
       .replace(/\\times/g, "×")

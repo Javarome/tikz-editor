@@ -395,6 +395,17 @@ export class Parser {
       position = positionFromOptions
     }
 
+    // Apply xshift/yshift transformations to position
+    if (style.transformations) {
+      for (const transform of style.transformations) {
+        if (transform.type === "xshift") {
+          position = new Point(position.x + transform.value, position.y)
+        } else if (transform.type === "yshift") {
+          position = new Point(position.x, position.y + transform.value)
+        }
+      }
+    }
+
     // Parse node text
     let text = ""
     if (this.peek()?.type === TokenType.STRING) {

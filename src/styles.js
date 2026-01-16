@@ -175,6 +175,48 @@ export function parseLineWidth(value, scale = 1) {
 }
 
 /**
+ * Parse a distance value and convert to centimeters (TikZ coordinate units)
+ * Used for xshift, yshift, and other positional transforms
+ */
+export function parseDistanceCm(value) {
+  if (typeof value === "number") {
+    return value
+  }
+
+  if (!value) {
+    return 0
+  }
+
+  const trimmed = value.trim().toLowerCase()
+  const numMatch = trimmed.match(/^(-?\d+\.?\d*)(pt|px|mm|cm|em)?$/)
+  if (numMatch) {
+    let num = parseFloat(numMatch[1])
+    const unit = numMatch[2] || "cm"
+
+    // Convert to centimeters
+    switch (unit) {
+      case "pt":
+        num *= 0.0353 // 1pt = 0.0353cm
+        break
+      case "mm":
+        num *= 0.1 // 1mm = 0.1cm
+        break
+      case "px":
+        num *= 0.0265 // approximate: 1px ≈ 0.0265cm at 96dpi
+        break
+      case "em":
+        num *= 0.423 // approximate
+        break
+      // cm is default, no conversion
+    }
+
+    return num
+  }
+
+  return 0
+}
+
+/**
  * Parse dash pattern
  */
 export function parseDashPattern(value, scale = 1) {
@@ -393,10 +435,10 @@ export function parseOptions(options, baseStyle = null, scale = 1) {
         }
         break
       case "xshift":
-        style.transformations.push({ type: "xshift", value: parseLineWidth(value, 1) })
+        style.transformations.push({ type: "xshift", value: parseDistanceCm(value) })
         break
       case "yshift":
-        style.transformations.push({ type: "yshift", value: parseLineWidth(value, 1) })
+        style.transformations.push({ type: "yshift", value: parseDistanceCm(value) })
         break
       case "rotate":
         style.transformations.push({ type: "rotate", angle: parseFloat(value) })
