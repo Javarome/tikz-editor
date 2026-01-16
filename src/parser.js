@@ -660,7 +660,10 @@ export class Parser {
         case "below":
         case "left":
         case "right":
-          result.anchor = this.oppositeAnchor(key)
+          // Only set anchor for bare keywords like [above], not positioning like [below=of chi]
+          if (!value) {
+            result.anchor = this.oppositeAnchor(key)
+          }
           break
       }
     }
