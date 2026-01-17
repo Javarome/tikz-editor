@@ -29,7 +29,8 @@ export const EXAMPLES = {
   vortical: "/example/vortical.tikz",
   skyrmion: "/example/skyrmion.tikz",
   spectral: "/example/spectral.tikz",
-  hubble: "/example/hubble.tikz"
+  hubble: "/example/hubble.tikz",
+  fibration: "/example/fibration.tikz"
 }
 // Example selector
 const exampleSelect = document.getElementById("example-select")
