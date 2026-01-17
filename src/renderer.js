@@ -20,6 +20,7 @@ export class Renderer {
     this.usedColors = new Set()
     this.bounds = null // Store bounds for Y-flip calculation
     this.nodeMetrics = new Map() // Store measured node dimensions: name -> {width, height, center}
+    this.axisClipCounter = 0
   }
 
   // Get font scale factor relative to base scale
@@ -665,6 +666,19 @@ export class Renderer {
       }))
     }
 
+    const plotGroup = document.createElementNS(SVG_NS, "g")
+    const clipId = `axis-clip-${this.axisClipCounter++}`
+    const clipPath = document.createElementNS(SVG_NS, "clipPath")
+    clipPath.setAttribute("id", clipId)
+    const clipRect = document.createElementNS(SVG_NS, "rect")
+    clipRect.setAttribute("x", this.toSvgX(origin.x))
+    clipRect.setAttribute("y", this.toSvgY(origin.y + height))
+    clipRect.setAttribute("width", width * this.scale)
+    clipRect.setAttribute("height", height * this.scale)
+    clipPath.appendChild(clipRect)
+    this.defs.appendChild(clipPath)
+    plotGroup.setAttribute("clip-path", `url(#${clipId})`)
+
     for (const plot of plots) {
       if (!plot.points || plot.points.length === 0) continue
       let pathData = ""
@@ -678,8 +692,9 @@ export class Renderer {
       path.setAttribute("d", pathData)
       const strokeColor = plot.style?.stroke || this.defaultStroke
       this.applyStyle(path, plot.style || {}, true, false, strokeColor)
-      elements.push(path)
+      plotGroup.appendChild(path)
     }
+    elements.push(plotGroup)
 
     if (settings.title) {
       elements.push(this.renderAxisText(settings.title, origin.x + width / 2, origin.y + height + 0.7, {
