@@ -3,7 +3,7 @@
  */
 
 import { NodeType } from "./parser.js"
-import { parseColor } from "./styles.js"
+import { parseColor, parseOptions } from "./styles.js"
 import { createArrowDefs, getArrowMarker } from "./arrows.js"
 
 const SVG_NS = "http://www.w3.org/2000/svg"
@@ -225,6 +225,17 @@ export class Renderer {
     }
 
     for (const command of ast.commands) {
+      if (command.type === NodeType.AXIS) {
+        const { width, height } = this.getAxisDimensions(command.settings || {})
+        const origin = command.origin || { x: 0, y: 0 }
+        const titleOffset = command.settings?.title ? 1.0 : 0
+        const xLabelOffset = command.settings?.xlabel ? 0.9 : 0.6
+        const yLabelOffset = command.settings?.ylabel ? 0.9 : 0.6
+
+        updateBounds(origin.x - yLabelOffset, origin.y - xLabelOffset)
+        updateBounds(origin.x + width, origin.y + height + titleOffset)
+        continue
+      }
       // For NODE commands, account for width/height
       if (command.type === NodeType.NODE && command.position) {
         updateNodeBounds(command)
@@ -287,6 +298,8 @@ export class Renderer {
         return this.renderDraw(command, true, true)
       case NodeType.PATH:
         return this.renderDraw(command, false, false)
+      case NodeType.AXIS:
+        return this.renderAxis(command)
       case NodeType.NODE:
         return this.renderNode(command)
       case NodeType.COORDINATE:
@@ -428,6 +441,369 @@ export class Renderer {
       this.applyStyle(path, style, doStroke, doFill, strokeColor)
       elements.unshift(path)
     }
+
+    return elements
+  }
+
+  getAxisDimensions(settings) {
+    const width = Number.isFinite(settings.width) ? settings.width : 10
+    const height = Number.isFinite(settings.height) ? settings.height : 6
+    return { width, height }
+  }
+
+  getAxisRanges(settings, plots) {
+    const xRange = this.buildAxisRange(settings.xMin, settings.xMax, plots, "x")
+    const yRange = this.buildAxisRange(settings.yMin, settings.yMax, plots, "y")
+    return {
+      x: xRange || { min: 0, max: 1 },
+      y: yRange || { min: 0, max: 1 }
+    }
+  }
+
+  buildAxisRange(min, max, plots, axis) {
+    if (Number.isFinite(min) && Number.isFinite(max) && min !== max) {
+      return { min, max }
+    }
+
+    let values = []
+    for (const plot of plots || []) {
+      if (plot.points) {
+        for (const point of plot.points) {
+          values.push(axis === "x" ? point.x : point.y)
+        }
+      }
+    }
+
+    if (!values.length) return null
+    let rangeMin = values[0]
+    let rangeMax = values[0]
+    for (const value of values) {
+      if (value < rangeMin) rangeMin = value
+      if (value > rangeMax) rangeMax = value
+    }
+    if (rangeMin === rangeMax) return null
+    return { min: rangeMin, max: rangeMax }
+  }
+
+  generateTicks(range, desired = 6) {
+    const span = range.max - range.min
+    if (!Number.isFinite(span) || span <= 0) return []
+    const rawStep = span / (desired - 1)
+    const magnitude = Math.pow(10, Math.floor(Math.log10(rawStep)))
+    const steps = [1, 2, 5, 10]
+    let step = steps[0] * magnitude
+    for (const candidate of steps) {
+      if (rawStep <= candidate * magnitude) {
+        step = candidate * magnitude
+        break
+      }
+    }
+    const start = Math.ceil(range.min / step) * step
+    const ticks = []
+    for (let value = start; value <= range.max + step * 0.5; value += step) {
+      ticks.push(Number(value.toFixed(6)))
+    }
+    return ticks
+  }
+
+  formatTick(value) {
+    const rounded = Math.abs(value) >= 1 ? value.toFixed(2) : value.toFixed(3)
+    return rounded.replace(/\.?0+$/, "")
+  }
+
+  parseStyleString(styleString) {
+    if (!styleString) return {}
+    const options = []
+    let current = ""
+    let depth = 0
+    for (const char of styleString) {
+      if (char === "{") {
+        depth += 1
+        current += char
+      } else if (char === "}") {
+        depth -= 1
+        current += char
+      } else if (char === "," && depth === 0) {
+        if (current.trim()) options.push(current.trim())
+        current = ""
+      } else {
+        current += char
+      }
+    }
+    if (current.trim()) options.push(current.trim())
+    return parseOptions(options)
+  }
+
+  parseLegendStyle(styleOptions) {
+    const style = {
+      anchor: "south east",
+      relPos: { x: 0.98, y: 0.02 },
+      draw: "#000000",
+      fill: "#ffffff",
+      fillOpacity: 0.9,
+      textOpacity: 1,
+      fontSize: 12
+    }
+
+    if (!Array.isArray(styleOptions)) return style
+
+    for (const opt of styleOptions) {
+      const eqIndex = opt.indexOf("=")
+      const key = eqIndex >= 0 ? opt.slice(0, eqIndex).trim() : opt.trim()
+      const value = eqIndex >= 0 ? opt.slice(eqIndex + 1).trim() : null
+
+      if (key === "at" && value) {
+        const match = value.match(/rel axis cs:\s*([-\d.]+)\s*,\s*([-\d.]+)/)
+        if (match) {
+          style.relPos = { x: parseFloat(match[1]), y: parseFloat(match[2]) }
+        }
+      } else if (key === "anchor" && value) {
+        style.anchor = value
+      } else if (key === "draw" && value) {
+        style.draw = parseColor(value) || value
+      } else if (key === "fill" && value) {
+        style.fill = parseColor(value) || value
+      } else if (key === "fill opacity" && value) {
+        style.fillOpacity = parseFloat(value)
+      } else if (key === "text opacity" && value) {
+        style.textOpacity = parseFloat(value)
+      } else if (key === "font" && value) {
+        if (value.includes("\\small")) style.fontSize = 12
+        if (value.includes("\\footnotesize")) style.fontSize = 10
+        if (value.includes("\\scriptsize")) style.fontSize = 8
+      }
+    }
+
+    return style
+  }
+
+  renderAxis(command) {
+    const elements = []
+    const settings = command.settings || {}
+    const plots = command.plots || []
+    const { width, height } = this.getAxisDimensions(settings)
+    const origin = command.origin || { x: 0, y: 0 }
+    const ranges = this.getAxisRanges(settings, plots)
+    const xRange = ranges.x
+    const yRange = ranges.y
+
+    const mapX = (x) => origin.x + ((x - xRange.min) / (xRange.max - xRange.min)) * width
+    const mapY = (y) => origin.y + ((y - yRange.min) / (yRange.max - yRange.min)) * height
+
+    const xTicks = settings.xTicks || this.generateTicks(xRange, 6)
+    const yTicks = settings.yTicks || this.generateTicks(yRange, 6)
+
+    const gridStyle = this.parseStyleString(settings.majorGridStyle || settings.gridStyle)
+    const gridStroke = gridStyle.stroke || parseColor("gray!40") || "#cccccc"
+    const gridWidth = gridStyle.lineWidth || 0.2
+
+    if (settings.grid && settings.grid !== "none") {
+      for (const tick of xTicks) {
+        const x = mapX(tick)
+        const line = document.createElementNS(SVG_NS, "line")
+        line.setAttribute("x1", this.toSvgX(x))
+        line.setAttribute("y1", this.toSvgY(origin.y))
+        line.setAttribute("x2", this.toSvgX(x))
+        line.setAttribute("y2", this.toSvgY(origin.y + height))
+        line.setAttribute("stroke", gridStroke)
+        line.setAttribute("stroke-width", gridWidth * 2)
+        elements.push(line)
+      }
+      for (const tick of yTicks) {
+        const y = mapY(tick)
+        const line = document.createElementNS(SVG_NS, "line")
+        line.setAttribute("x1", this.toSvgX(origin.x))
+        line.setAttribute("y1", this.toSvgY(y))
+        line.setAttribute("x2", this.toSvgX(origin.x + width))
+        line.setAttribute("y2", this.toSvgY(y))
+        line.setAttribute("stroke", gridStroke)
+        line.setAttribute("stroke-width", gridWidth * 2)
+        elements.push(line)
+      }
+    }
+
+    const frame = document.createElementNS(SVG_NS, "rect")
+    frame.setAttribute("x", this.toSvgX(origin.x))
+    frame.setAttribute("y", this.toSvgY(origin.y + height))
+    frame.setAttribute("width", width * this.scale)
+    frame.setAttribute("height", height * this.scale)
+    frame.setAttribute("fill", "none")
+    frame.setAttribute("stroke", this.defaultStroke)
+    frame.setAttribute("stroke-width", 0.8)
+    elements.push(frame)
+
+    const tickSize = 0.12
+    for (const tick of xTicks) {
+      const x = mapX(tick)
+      const line = document.createElementNS(SVG_NS, "line")
+      line.setAttribute("x1", this.toSvgX(x))
+      line.setAttribute("y1", this.toSvgY(origin.y))
+      line.setAttribute("x2", this.toSvgX(x))
+      line.setAttribute("y2", this.toSvgY(origin.y - tickSize))
+      line.setAttribute("stroke", this.defaultStroke)
+      line.setAttribute("stroke-width", 0.8)
+      elements.push(line)
+
+      elements.push(this.renderAxisText(this.formatTick(tick), x, origin.y - 0.35, {
+        anchor: "middle"
+      }))
+    }
+
+    for (const tick of yTicks) {
+      const y = mapY(tick)
+      const line = document.createElementNS(SVG_NS, "line")
+      line.setAttribute("x1", this.toSvgX(origin.x))
+      line.setAttribute("y1", this.toSvgY(y))
+      line.setAttribute("x2", this.toSvgX(origin.x - tickSize))
+      line.setAttribute("y2", this.toSvgY(y))
+      line.setAttribute("stroke", this.defaultStroke)
+      line.setAttribute("stroke-width", 0.8)
+      elements.push(line)
+
+      elements.push(this.renderAxisText(this.formatTick(tick), origin.x - 0.3, y, {
+        anchor: "end"
+      }))
+    }
+
+    for (const plot of plots) {
+      if (!plot.points || plot.points.length === 0) continue
+      let pathData = ""
+      for (let i = 0; i < plot.points.length; i++) {
+        const point = plot.points[i]
+        const px = mapX(point.x)
+        const py = mapY(point.y)
+        pathData += `${i === 0 ? "M" : "L"} ${this.toSvgX(px)} ${this.toSvgY(py)} `
+      }
+      const path = document.createElementNS(SVG_NS, "path")
+      path.setAttribute("d", pathData)
+      const strokeColor = plot.style?.stroke || this.defaultStroke
+      this.applyStyle(path, plot.style || {}, true, false, strokeColor)
+      elements.push(path)
+    }
+
+    if (settings.title) {
+      elements.push(this.renderAxisText(settings.title, origin.x + width / 2, origin.y + height + 0.7, {
+        anchor: "middle"
+      }))
+    }
+    if (settings.xlabel) {
+      elements.push(this.renderAxisText(settings.xlabel, origin.x + width / 2, origin.y - 0.8, {
+        anchor: "middle"
+      }))
+    }
+    if (settings.ylabel) {
+      elements.push(this.renderAxisText(settings.ylabel, origin.x - 0.9, origin.y + height / 2, {
+        anchor: "middle",
+        rotation: -90
+      }))
+    }
+
+    if ((command.legendEntries || []).length > 0) {
+      const legendStyle = this.parseLegendStyle(settings.legendStyle)
+      const legendElements = this.renderAxisLegend(command.legendEntries, plots, origin, width, height, legendStyle)
+      elements.push(...legendElements)
+    }
+
+    return elements
+  }
+
+  renderAxisText(text, x, y, { anchor = "middle", rotation = 0, fontSize = null, fill = null } = {}) {
+    const group = document.createElementNS(SVG_NS, "g")
+    const transform = `translate(${this.toSvgX(x)}, ${this.toSvgY(y)})` + (rotation ? ` rotate(${rotation})` : "")
+    group.setAttribute("transform", transform)
+
+    const textEl = document.createElementNS(SVG_NS, "text")
+    textEl.setAttribute("text-anchor", anchor)
+    textEl.setAttribute("font-family", "serif")
+    textEl.setAttribute("fill", fill || this.defaultStroke)
+
+    const { lines } = this.parseNodeText(text, fontSize)
+    const lineHeight = 16 * this.fontScale
+    const startY = -((lines.length - 1) * lineHeight) / 2
+
+    lines.forEach((line, index) => {
+      const tspan = document.createElementNS(SVG_NS, "tspan")
+      tspan.setAttribute("x", "0")
+      tspan.setAttribute("dy", index === 0 ? startY : lineHeight)
+      tspan.setAttribute("dominant-baseline", "central")
+      tspan.setAttribute("font-size", line.fontSize)
+      this.renderTextContent(tspan, line.content)
+      textEl.appendChild(tspan)
+    })
+
+    group.appendChild(textEl)
+    return group
+  }
+
+  renderAxisLegend(entries, plots, origin, width, height, legendStyle) {
+    const elements = []
+    const lineHeight = 0.5
+    const labelPadding = 0.25
+    const lineLength = 0.7
+    const fontSize = legendStyle.fontSize
+
+    let maxLabelWidth = 0
+    for (const entry of entries) {
+      const plain = entry.replace(/\\[a-z]+\b/g, "")
+      maxLabelWidth = Math.max(maxLabelWidth, plain.length * 0.12)
+    }
+
+    const boxWidth = lineLength + labelPadding + maxLabelWidth + 0.6
+    const boxHeight = entries.length * lineHeight + 0.4
+
+    const legendX = origin.x + width * legendStyle.relPos.x
+    const legendY = origin.y + height * legendStyle.relPos.y
+
+    let boxX = legendX
+    let boxY = legendY
+
+    if (legendStyle.anchor.includes("east")) {
+      boxX -= boxWidth
+    } else if (!legendStyle.anchor.includes("west")) {
+      boxX -= boxWidth / 2
+    }
+    if (legendStyle.anchor.includes("north")) {
+      boxY -= boxHeight
+    } else if (!legendStyle.anchor.includes("south")) {
+      boxY -= boxHeight / 2
+    }
+
+    const rect = document.createElementNS(SVG_NS, "rect")
+    rect.setAttribute("x", this.toSvgX(boxX))
+    rect.setAttribute("y", this.toSvgY(boxY + boxHeight))
+    rect.setAttribute("width", boxWidth * this.scale)
+    rect.setAttribute("height", boxHeight * this.scale)
+    rect.setAttribute("fill", legendStyle.fill)
+    rect.setAttribute("fill-opacity", legendStyle.fillOpacity)
+    rect.setAttribute("stroke", legendStyle.draw)
+    rect.setAttribute("stroke-width", 0.6)
+    elements.push(rect)
+
+    entries.forEach((entry, index) => {
+      const y = boxY + boxHeight - 0.3 - index * lineHeight
+      const xStart = boxX + 0.3
+      const xEnd = xStart + lineLength
+      const plot = plots[index] || {}
+      const strokeColor = plot.style?.stroke || this.defaultStroke
+      const line = document.createElementNS(SVG_NS, "line")
+      line.setAttribute("x1", this.toSvgX(xStart))
+      line.setAttribute("y1", this.toSvgY(y))
+      line.setAttribute("x2", this.toSvgX(xEnd))
+      line.setAttribute("y2", this.toSvgY(y))
+      line.setAttribute("stroke", strokeColor)
+      line.setAttribute("stroke-width", (plot.style?.lineWidth || 0.4) * 2)
+      if (plot.style?.dashPattern) {
+        line.setAttribute("stroke-dasharray", plot.style.dashPattern.map(v => v * 2).join(" "))
+      }
+      elements.push(line)
+
+      const label = this.renderAxisText(entry, xEnd + labelPadding, y, {
+        anchor: "start",
+        fontSize,
+        fill: `rgba(0,0,0,${legendStyle.textOpacity})`
+      })
+      elements.push(label)
+    })
 
     return elements
   }

@@ -23,6 +23,50 @@ const computeRange = (values) => {
   return parseRange(min, max)
 }
 
+const stripBraces = (value) => {
+  if (!value) return value
+  const trimmed = value.trim()
+  if (trimmed.startsWith("{") && trimmed.endsWith("}")) {
+    return trimmed.slice(1, -1)
+  }
+  return trimmed
+}
+
+const splitNestedOptions = (value) => {
+  const options = []
+  let current = ""
+  let depth = 0
+
+  for (const char of value) {
+    if (char === "{") {
+      depth += 1
+      current += char
+    } else if (char === "}") {
+      depth -= 1
+      current += char
+    } else if (char === "," && depth === 0) {
+      if (current.trim()) {
+        options.push(current.trim())
+      }
+      current = ""
+    } else {
+      current += char
+    }
+  }
+
+  if (current.trim()) {
+    options.push(current.trim())
+  }
+
+  return options
+}
+
+const parseTickList = (value) => {
+  const trimmed = stripBraces(value)
+  if (!trimmed) return null
+  return trimmed.split(",").map(entry => parseFloat(entry.trim())).filter(v => Number.isFinite(v))
+}
+
 const buildAxisSettings = (parser, options) => {
   const settings = {
     width: null,
@@ -30,7 +74,16 @@ const buildAxisSettings = (parser, options) => {
     xMin: null,
     xMax: null,
     yMin: null,
-    yMax: null
+    yMax: null,
+    xTicks: null,
+    yTicks: null,
+    title: null,
+    xlabel: null,
+    ylabel: null,
+    grid: null,
+    gridStyle: null,
+    majorGridStyle: null,
+    legendStyle: null
   }
 
   for (const opt of options) {
@@ -53,6 +106,33 @@ const buildAxisSettings = (parser, options) => {
         break
       case "ymax":
         settings.yMax = parseFloat(value)
+        break
+      case "xtick":
+        settings.xTicks = parseTickList(value)
+        break
+      case "ytick":
+        settings.yTicks = parseTickList(value)
+        break
+      case "title":
+        settings.title = stripBraces(value)
+        break
+      case "xlabel":
+        settings.xlabel = stripBraces(value)
+        break
+      case "ylabel":
+        settings.ylabel = stripBraces(value)
+        break
+      case "grid":
+        settings.grid = value
+        break
+      case "grid style":
+        settings.gridStyle = stripBraces(value)
+        break
+      case "major grid style":
+        settings.majorGridStyle = stripBraces(value)
+        break
+      case "legend style":
+        settings.legendStyle = splitNestedOptions(stripBraces(value))
         break
       default:
         break
@@ -87,30 +167,8 @@ const parsePlotOptions = (parser, options) => {
   return { domain, samples }
 }
 
-const scalePointsToAxis = (points, axisSettings, domain) => {
-  const xRange = parseRange(axisSettings.xMin, axisSettings.xMax) || domain
-  const yRange = parseRange(axisSettings.yMin, axisSettings.yMax) || computeRange(points.map(pt => pt.y))
-
-  if (!xRange || !yRange) return points
-
-  const width = Number.isFinite(axisSettings.width) ? axisSettings.width : (xRange.max - xRange.min)
-  const height = Number.isFinite(axisSettings.height) ? axisSettings.height : (yRange.max - yRange.min)
-
-  if (!Number.isFinite(width) || !Number.isFinite(height) || width === 0 || height === 0) {
-    return points
-  }
-
-  const xScale = width / (xRange.max - xRange.min)
-  const yScale = height / (yRange.max - yRange.min)
-
-  return points.map(point => new Point(
-    (point.x - xRange.min) * xScale,
-    (point.y - yRange.min) * yScale
-  ))
-}
-
 const parseAddPlot = (parser, axisSettings, deps) => {
-  const { TokenType, NodeType, ASTNode } = deps
+  const { TokenType } = deps
 
   parser.advance() // consume \addplot
 
@@ -140,21 +198,13 @@ const parseAddPlot = (parser, axisSettings, deps) => {
     points.push(new Point(x, y))
   }
 
-  const scaledPoints = scalePointsToAxis(points, axisSettings, domain)
-  const plotSegment = new ASTNode(NodeType.PLOT_SEGMENT, {
-    from: scaledPoints[0] || new Point(0, 0),
-    points: scaledPoints,
-    domain,
-    samples,
-    expression
-  })
-
-  return new ASTNode(NodeType.DRAW, { style, segments: [plotSegment], options })
+  return { style, options, domain, samples, expression, points }
 }
 
 const parseAxisContent = (parser, axisSettings, deps) => {
   const { TokenType } = deps
-  const commands = []
+  const plots = []
+  const legendEntries = []
 
   while (parser.peek()?.type !== TokenType.EOF) {
     const token = parser.peek()
@@ -171,9 +221,9 @@ const parseAxisContent = (parser, axisSettings, deps) => {
     }
 
     if (token?.type === TokenType.COMMAND && token.value === "\\addplot") {
-      const plotCommand = parseAddPlot(parser, axisSettings, deps)
-      if (plotCommand) {
-        commands.push(plotCommand)
+      const plot = parseAddPlot(parser, axisSettings, deps)
+      if (plot) {
+        plots.push(plot)
       }
       continue
     }
@@ -181,7 +231,7 @@ const parseAxisContent = (parser, axisSettings, deps) => {
     if (token?.type === TokenType.COMMAND && token.value === "\\addlegendentry") {
       parser.advance()
       if (parser.peek()?.type === TokenType.STRING) {
-        parser.advance()
+        legendEntries.push(parser.advance().value)
       }
       parser.match(TokenType.SEMICOLON)
       continue
@@ -190,7 +240,7 @@ const parseAxisContent = (parser, axisSettings, deps) => {
     parser.advance()
   }
 
-  return commands
+  return { plots, legendEntries }
 }
 
 export function createPgfplotsModule(deps) {
@@ -203,13 +253,14 @@ export function createPgfplotsModule(deps) {
 
       const axisOptions = parser.parseOptionsBlock()
       const axisSettings = buildAxisSettings(parser, axisOptions)
-      const commands = parseAxisContent(parser, axisSettings, deps)
+      const { plots, legendEntries } = parseAxisContent(parser, axisSettings, deps)
 
-      if (commands.length > 0) {
-        return { type: "FOREACH_RESULT", commands }
-      }
-
-      return new ASTNode(NodeType.AXIS, { options: axisOptions, settings: axisSettings })
+      return new ASTNode(NodeType.AXIS, {
+        options: axisOptions,
+        settings: axisSettings,
+        plots,
+        legendEntries
+      })
     }
   }
 }

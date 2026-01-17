@@ -1555,9 +1555,8 @@ export class Parser {
       expr = expr.replace(/\blog\s*\(/g, "Math.log10(")
       expr = expr.replace(/\bpow\s*\(/g, "Math.pow(")
 
-      // Handle exponentiation: x^2 -> Math.pow(x, 2)
-      expr = expr.replace(/\(([^)]+)\)\s*\^\s*(\d+\.?\d*|\([^)]+\))/g, "Math.pow($1, $2)")
-      expr = expr.replace(/(\d+\.?\d*)\s*\^\s*(\d+\.?\d*|\([^)]+\))/g, "Math.pow($1, $2)")
+      // Handle exponentiation (TikZ uses ^)
+      expr = expr.replace(/\^/g, "**")
 
       // Evaluate the expression
       const result = Function(`"use strict"; return (${expr})`)()
