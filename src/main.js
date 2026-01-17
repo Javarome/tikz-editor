@@ -3,19 +3,6 @@
  */
 
 import { TikZEditor } from "./editor.js"
-import basic from "./example/basic.tikz?raw"
-import arrows from "./example/arrows.tikz?raw"
-import curves from "./example/curves.tikz?raw"
-import nodes from "./example/nodes.tikz?raw"
-import diagram from "./example/diagram.tikz?raw"
-import full from "./example/full.tikz?raw"
-import styles from "./example/styles.tikz?raw"
-import positioning from "./example/positioning.tikz?raw"
-import subsystems from "./example/subsystems.tikz?raw"
-import wave from "./example/wave.tikz?raw"
-import concentric from "./example/concentric.tikz?raw"
-import projection from "./example/projection.tikz?raw"
-import decay from "./example/decay.tikz?raw"
 
 // Initialize editor
 const editor = new TikZEditor()
@@ -23,13 +10,34 @@ editor.init()
 window.tikzEditor = editor
 
 export const EXAMPLES = {
-  basic, arrows, curves, nodes, diagram, full, styles, positioning, subsystems, wave, concentric, projection, decay
+  basic: "/example/basic.tikz",
+  arrows: "/example/arrows.tikz",
+  curves: "/example/curves.tikz",
+  nodes: "/example/nodes.tikz",
+  diagram: "/example/diagram.tikz",
+  full: "/example/full.tikz",
+  styles: "/example/styles.tikz",
+  positioning: "/example/positioning.tikz",
+  subsystems: "/example/subsystems.tikz",
+  wave: "/example/wave.tikz",
+  concentric: "/example/concentric.tikz",
+  projection: "/example/projection.tikz",
+  decay: "/example/decay.tikz"
 }
-
 // Example selector
 const exampleSelect = document.getElementById("example-select")
-exampleSelect.addEventListener("change", () => {
-  const example = EXAMPLES[exampleSelect.value]
+exampleSelect.addEventListener("change", async () => {
+  let url = EXAMPLES[exampleSelect.value]
+  if (!url) {
+    alert(`Could not find example with ID "${exampleSelect.value}"`)
+    return
+  }
+  const response = await fetch(url)
+  if (!response.ok) {
+    alert(response.statusText)
+    return
+  }
+  const example = await response.text()
   if (example) {
     editor.setValue(example)
   }
