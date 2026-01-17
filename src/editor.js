@@ -1,5 +1,5 @@
 import { parse } from "./parser.js"
-import { Renderer } from "./renderer.js"
+import { Renderer, SVG_NS } from "./renderer.js"
 import { Textarea } from "./textarea.js"
 
 /**
@@ -8,6 +8,7 @@ import { Textarea } from "./textarea.js"
 export class TikZEditor {
   constructor(options = {}) {
     this.textareaId = options.textareaId || "tikz-input"
+    this.downloadId = options.downloadId || "download-button"
     this.previewId = options.previewId || "tikz-preview"
     this.errorId = options.errorId || "tikz-errors"
     this.scaleId = options.scaleId || "tikz-scale"
@@ -18,6 +19,7 @@ export class TikZEditor {
     this.errorDiv = null
     this.scaleSlider = null
     this.scaleValue = null
+    this.downloadButton = null
 
     this.scale = options.scale || 50
     this.debounceDelay = options.debounceDelay || 150
@@ -32,6 +34,7 @@ export class TikZEditor {
     this.errorDiv = document.getElementById(this.errorId)
     this.scaleSlider = document.getElementById(this.scaleId)
     this.scaleValue = document.getElementById(this.scaleValueId)
+    this.downloadButton = document.getElementById(this.downloadId)
 
     if (!parent || !this.preview) {
       console.error("TikZ Editor: Could not find required elements")
@@ -63,6 +66,23 @@ Example:
 
     if (this.scaleValue) {
       this.scaleValue.textContent = this.scale
+    }
+
+    this.downloadButton.onclick = () => {
+      let svgTag = document.querySelector("#tikz-preview svg")
+      if (svgTag) {
+        svgTag.setAttribute("xmlns", SVG_NS)
+        const svg = svgTag.outerHTML
+        const blob = new Blob([svg], { type: "image/svg+xml" })
+        const url = URL.createObjectURL(blob)
+        const link = document.createElement("a")
+        link.href = url
+        link.download = "tikz_preview.svg"
+        link.click()
+        URL.revokeObjectURL(url)
+      } else {
+        alert("No SVG to download")
+      }
     }
 
     // Initial render

@@ -6,14 +6,14 @@ import { NodeType } from "./parser.js"
 import { parseColor, parseOptions } from "./styles.js"
 import { createArrowDefs, getArrowMarker } from "./arrows.js"
 
-const SVG_NS = "http://www.w3.org/2000/svg"
+export const SVG_NS = "http://www.w3.org/2000/svg"
 
 export class Renderer {
   constructor(options = {}) {
     this.scale = options.scale || 50 // pixels per unit
     this.baseScale = 50 // reference scale for font sizing
     this.padding = options.padding || 20
-    this.backgroundColor = options.backgroundColor || "#ffffff"
+    this.backgroundColor = options.backgroundColor || "transparent"
     this.defaultStroke = options.defaultStroke || "#000000"
     this.svg = null
     this.defs = null

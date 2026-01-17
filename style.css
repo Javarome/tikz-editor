@@ -20,12 +20,25 @@ header {
   justify-content: space-between;
   align-items: center;
   border-bottom: 1px solid #0f3460;
-}
 
-header h1 {
-  font-size: 1.25rem;
-  font-weight: 500;
-  color: #e94560;
+  h1 {
+    font-size: 1.25rem;
+    font-weight: 500;
+    color: #e94560;
+  }
+
+  h2 {
+    font-size: 1em;
+    font-weight: normal;
+  }
+
+  button {
+    border: none;
+    background: #1a4080;
+    color: steelblue;
+    padding: 0.25em 0.5em;
+    border-radius: 4px;
+  }
 }
 
 .controls {
