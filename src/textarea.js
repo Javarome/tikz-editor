@@ -18,7 +18,7 @@ export class Textarea extends EventTarget {
           latex({
             autoCloseTags: true,    // Auto-close environments
             enableLinting: false,    // Enable linting
-            enableTooltips: true    // Enable hover tooltips
+            enableTooltips: false    // Enable hover tooltips
           }),
           EditorView.updateListener.of((viewUpdate) => {
             if (viewUpdate.docChanged) {
