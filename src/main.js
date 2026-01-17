@@ -25,7 +25,8 @@ export const EXAMPLES = {
   decay: "/example/decay.tikz",
   entangled: "/example/entangled.tikz",
   oriented: "/example/oriented.tikz",
-  vortical: "/example/vortical.tikz"
+  vortical: "/example/vortical.tikz",
+  skyrmion: "/example/skyrmion.tikz"
 }
 // Example selector
 const exampleSelect = document.getElementById("example-select")
