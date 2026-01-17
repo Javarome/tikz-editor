@@ -22,7 +22,8 @@ export const EXAMPLES = {
   wave: "/example/wave.tikz",
   concentric: "/example/concentric.tikz",
   projection: "/example/projection.tikz",
-  decay: "/example/decay.tikz"
+  decay: "/example/decay.tikz",
+  entangled: "/example/entangled.tikz"
 }
 // Example selector
 const exampleSelect = document.getElementById("example-select")
