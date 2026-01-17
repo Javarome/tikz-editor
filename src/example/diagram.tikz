@@ -1,0 +1,9 @@
+% A simple diagram
+\draw[thick, ->] (0,0) -- (3,0);
+\draw[thick, ->] (0,0) -- (0,2);
+\draw[blue, thick] (0,0) -- (2,1.5);
+\draw[red, dashed] (2,0) -- (2,1.5);
+\draw[red, dashed] (0,1.5) -- (2,1.5);
+\node at (2,1.5) [above right] {P};
+\node at (3,0) [below] {x};
+\node at (0,2) [left] {y};

@@ -1,0 +1,9 @@
+% Using style definitions
+\begin{tikzpicture}[
+  box/.style={draw, rounded corners, fill=yellow},
+  arrow/.style={->, thick, blue}
+]
+  \node[box] (A) at (0,0) {Start};
+  \node[box] (B) at (3,0) {End};
+  \draw[arrow] (A) -- (B);
+\end{tikzpicture}

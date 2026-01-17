@@ -1,0 +1,3 @@
+% Bezier curves
+\draw (0,0) .. controls (1,1) and (2,1) .. (3,0);
+\draw[red] (0,0) to[out=45, in=135] (3,0);

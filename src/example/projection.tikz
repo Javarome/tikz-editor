@@ -1,0 +1,66 @@
+% Projection saturation diagram
+\begin{tikzpicture}[font=\small]
+
+% --- Geometry constants (implicit): boxes are placed in absolute coordinates ---
+% Left box: chi
+  \draw[thick,rounded corners=2pt] (0,0) rectangle (5.0,4.0);
+  \node at (2.5,3.55) {$\chi$};
+  \node[font=\footnotesize] at (2.5,3.20) {substrate (micro-configurations)};
+
+% Middle box: projection / horizon boundary
+  \draw[thick,rounded corners=2pt] (6.0,0) rectangle (9.1,4.0);
+  \node at (7.55,3.55) {$\Pi$};
+  \node[font=\scriptsize] at (7.55,3.20) {projection to $g_{\mu\nu}$};
+
+% Right box: g_H (keep minimal to avoid overlap)
+  \draw[thick,rounded corners=2pt] (10.1,0) rectangle (15.8,4.0);
+  \node at (12.95,3.55) {$g_H$};
+  \node[font=\footnotesize] at (12.95,3.20) {effective horizon geometry};
+
+% --- Microstates (left box) ---
+  \foreach \x/\y in {0.8/2.8,1.7/3.0,2.6/2.8,3.5/3.0,4.2/2.7,
+  1.0/2.0,2.0/2.1,3.0/2.0,4.0/2.1,
+  0.9/1.1,2.0/1.0,3.1/1.2,4.1/1.0}{
+    \draw[thick] (\x,\y) circle (0.12);
+  }
+  \node[font=\scriptsize] at (2.5,0.35) {Many distinct $\chi$ microstates};
+
+% --- Arrow to middle box ---
+  \draw[->,thick] (5.0,2.0) -- (6.0,2.0);
+  \node[font=\scriptsize] at (5.5,2.35) {many-to-one};
+
+% --- Horizon boundary line inside middle box ---
+  \draw[thick] (7.55,0.45) -- (7.55,3.55);
+  \node[font=\scriptsize,rotate=90] at (7.82,2.0) {horizon boundary};
+  \node[font=\scriptsize] at (6.55,3.85) {$N(r)\to 0$};
+  \node[font=\scriptsize] at (7.55,0.20) {non-injective};
+
+% --- Arrow to right box ---
+  \draw[->,thick] (9.1,2.0) -- (10.1,2.0);
+  \node[font=\scriptsize] at (9.6,2.35) {$\Pi(\chi)\mapsto g_H$};
+
+% --- Horizon disk + pixels (right box) ---
+  \draw[thick] (12.95,1.95) circle (1.30);
+  \node[font=\scriptsize] at (12.95,3.80) {projection saturation: $A \sim N\,\hbar_\chi$};
+
+% pixels inside the disk (all are safely inside)
+  \foreach \x/\y in {12.25/2.55,12.65/2.55,13.05/2.55,13.45/2.55,
+  12.05/2.15,12.45/2.15,12.85/2.15,13.25/2.15,13.65/2.15,
+  12.05/1.75,12.45/1.75,12.85/1.75,13.25/1.75,13.65/1.75,
+  12.05/1.35,12.45/1.35,12.85/1.35,13.25/1.35,13.65/1.35,
+  12.25/0.95,12.65/0.95,13.05/0.95,13.45/0.95}{
+    \draw[thick] (\x,\y) rectangle ++(0.18,0.18);
+  }
+
+% --- Dotted arrows: selected microstates collapse to same horizon pixel ---
+  \draw[->,thick,densely dotted] (1.0,2.8) .. controls (6.5,2.7) and (10.8,2.3) .. (12.65,2.05);
+  \draw[->,thick,densely dotted] (2.0,2.1) .. controls (6.5,2.0) and (10.8,2.0) .. (12.65,2.05);
+  \draw[->,thick,densely dotted] (4.1,1.0) .. controls (6.5,1.3) and (10.8,1.7) .. (12.65,2.05);
+
+% --- External annotations (kept outside boxes to avoid overlap) ---
+  \node[font=\scriptsize,align=left] at (2.5,4.55) {Fiber multiplicity: $\Pi^{-1}(g_H)$};
+  \node[font=\scriptsize,align=left] at (14.95,2.80) {$S \sim \log |\Pi^{-1}(g_H)|$};
+  \node[font=\scriptsize,align=center] at (12.95,0.35)
+    {fourfold degeneracy per projected pixel\\$\Rightarrow\ S \propto A/4$};
+
+\end{tikzpicture}

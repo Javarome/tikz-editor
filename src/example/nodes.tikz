@@ -1,0 +1,3 @@
+% Nodes with text
+\node[draw] at (0,0) {Hello};
+\node[draw, fill=yellow, circle] at (2,0) {World};

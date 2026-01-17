@@ -1,0 +1,37 @@
+% Factorization/decay diagram
+\begin{tikzpicture}[
+  box/.style={draw, rounded corners, align=center, inner sep=6pt},
+  arr/.style={->, thick},
+  lab/.style={font=\small, align=center}
+]
+
+% Parent
+  \node[box] (A) {$\chi_{\mathrm{eff},A}$\\\footnotesize metastable\\\footnotesize (single knot)};
+
+% Trigger
+  \node[box, right=2.7cm of A, yshift=1.1cm] (T)
+  {Trigger\\\footnotesize projective variability\\\footnotesize (threshold crossing)};
+
+% Branching
+  \node[box, right=2.5cm of A, yshift=-0.8cm] (B1) {$\chi_{\mathrm{eff},B_1}$};
+  \node[box, below=0.4cm of B1] (B2) {$\chi_{\mathrm{eff},B_2}$};
+  \node[box, below=0.4cm of B2] (B3) {$\chi_{\mathrm{eff},B_3}$};
+
+% Result
+  \node[box, right=2.5cm of B2] (R) {$\chi_{\mathrm{eff},R}$\\\footnotesize new stable\\\footnotesize configuration};
+
+% Arrows
+  \draw[arr] (A) -- node[above, lab] {internal\\instability} (T);
+  \draw[arr] (T) -| (B1);
+  \draw[arr] (A) -- (B1);
+  \draw[arr] (A) -- (B2);
+  \draw[arr] (A) -- (B3);
+  \draw[arr] (B1) -- (R);
+  \draw[arr] (B2) -- (R);
+  \draw[arr] (B3) -- (R);
+
+% Quanta release
+  \node[box, below=1.5cm of R] (Q) {$\Delta\chi$\\\footnotesize released quanta};
+  \draw[arr, dashed] (R) -- node[right, lab] {energy\\conservation} (Q);
+
+\end{tikzpicture}

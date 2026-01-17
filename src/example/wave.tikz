@@ -1,0 +1,19 @@
+% Wave with plot command
+\begin{tikzpicture}[scale=1.1]
+
+% Axes
+  \draw[->] (-0.2,0) -- (6.5,0) node[right]{Space};
+  \draw[->] (0,-0.2) -- (0,3.5) node[above]{Time};
+
+% Wave
+  \draw[thick, blue, domain=0:6, samples=200]
+  plot (\x,{0.6*sin(2*pi*\x/1.5 r) + 0.4*\x/6});
+
+% Particle crest
+  \draw[red, thick] (3.2,1.3) circle (0.15);
+  \node[red, right] at (3.4,1.3) {Topological excitation};
+
+% Annotation
+  \node[blue] at (4.5,2.4) {effective $\chi$ relaxation};
+
+\end{tikzpicture}
