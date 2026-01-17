@@ -944,219 +944,175 @@ export class Renderer {
   }
 
   /**
-   * Render math content - simple implementation
+   * Render math content using a recursive parser to handle nested subscripts/superscripts
    */
   renderMath(mathContent) {
     const container = document.createElementNS(SVG_NS, "tspan")
-
-    // Process the math content to extract subscripts/superscripts and main text
-    let processed = mathContent
-
-    // Handle common LaTeX commands (Greek letters, symbols)
-    processed = processed
-      .replace(/\\chi/g, "χ")
-      .replace(/\\alpha/g, "α")
-      .replace(/\\beta/g, "β")
-      .replace(/\\gamma/g, "γ")
-      .replace(/\\delta/g, "δ")
-      .replace(/\\epsilon/g, "ε")
-      .replace(/\\zeta/g, "ζ")
-      .replace(/\\eta/g, "η")
-      .replace(/\\theta/g, "θ")
-      .replace(/\\iota/g, "ι")
-      .replace(/\\kappa/g, "κ")
-      .replace(/\\lambda/g, "λ")
-      .replace(/\\mu/g, "μ")
-      .replace(/\\nu/g, "ν")
-      .replace(/\\xi/g, "ξ")
-      .replace(/\\pi/g, "π")
-      .replace(/\\rho/g, "ρ")
-      .replace(/\\sigma/g, "σ")
-      .replace(/\\tau/g, "τ")
-      .replace(/\\upsilon/g, "υ")
-      .replace(/\\phi/g, "φ")
-      .replace(/\\psi/g, "ψ")
-      .replace(/\\omega/g, "ω")
-      .replace(/\\Gamma/g, "Γ")
-      .replace(/\\Delta/g, "Δ")
-      .replace(/\\Theta/g, "Θ")
-      .replace(/\\Lambda/g, "Λ")
-      .replace(/\\Xi/g, "Ξ")
-      .replace(/\\Pi/g, "Π")
-      .replace(/\\Sigma/g, "Σ")
-      .replace(/\\Phi/g, "Φ")
-      .replace(/\\Psi/g, "Ψ")
-      .replace(/\\Omega/g, "Ω")
-      .replace(/\\infty/g, "∞")
-      .replace(/\\sum/g, "∑")
-      .replace(/\\prod/g, "∏")
-      .replace(/\\int/g, "∫")
-      .replace(/\\partial/g, "∂")
-      .replace(/\\nabla/g, "∇")
-      .replace(/\\times/g, "×")
-      .replace(/\\cdot/g, "·")
-      .replace(/\\pm/g, "±")
-      .replace(/\\mp/g, "∓")
-      .replace(/\\leq/g, "≤")
-      .replace(/\\geq/g, "≥")
-      .replace(/\\neq/g, "≠")
-      .replace(/\\approx/g, "≈")
-      .replace(/\\equiv/g, "≡")
-      .replace(/\\rightarrow/g, "→")
-      .replace(/\\leftarrow/g, "←")
-      .replace(/\\Rightarrow/g, "⇒")
-      .replace(/\\Leftarrow/g, "⇐")
-      .replace(/\\simeq/g, "≃")
-      .replace(/\\otimes/g, "⊗")
-      .replace(/\\oplus/g, "⊕")
-      .replace(/\\subset/g, "⊂")
-      .replace(/\\supset/g, "⊃")
-      .replace(/\\subseteq/g, "⊆")
-      .replace(/\\supseteq/g, "⊇")
-      .replace(/\\in/g, "∈")
-      .replace(/\\notin/g, "∉")
-      .replace(/\\forall/g, "∀")
-      .replace(/\\exists/g, "∃")
-      .replace(/\\neg/g, "¬")
-      .replace(/\\land/g, "∧")
-      .replace(/\\lor/g, "∨")
-
-    // Handle \mathcal{...} - convert to mathematical script characters
-    processed = processed.replace(/\\mathcal\{([^}]+)\}/g, (match, content) => {
-      return this.toMathCaligraphic(content)
-    })
-
-    // First, replace \mathrm{...} with a temporary marker to simplify subscript handling
-    // Use a placeholder that won't interfere with subscript parsing
-    const mathrmBlocks = []
-    processed = processed.replace(/\\mathrm\{([^}]+)\}/g, (match, content) => {
-      mathrmBlocks.push(content)
-      return `\x02RM${mathrmBlocks.length - 1}\x02`
-    })
-
-    // Handle subscripts: _{...} or _x
-    processed = processed.replace(/_\{([^}]+)\}/g, "\x00sub:$1\x01")
-    processed = processed.replace(/_([a-zA-Z0-9])/g, "\x00sub:$1\x01")
-
-    // Handle superscripts: ^{...} or ^x
-    processed = processed.replace(/\^\{([^}]+)\}/g, "\x00sup:$1\x01")
-    processed = processed.replace(/\^([a-zA-Z0-9])/g, "\x00sup:$1\x01")
-
-    // Restore \mathrm blocks as markers
-    processed = processed.replace(/\x02RM(\d+)\x02/g, (match, index) => {
-      return `\x00mathrm:${mathrmBlocks[parseInt(index)]}\x01`
-    })
-
-    // Helper to process text that may contain mathrm markers
-    const processContent = (text, parentSpan, defaultStyle) => {
-      const mathrmRegex = /\x00mathrm:([^\x01]+)\x01/g
-      let idx = 0
-      let m
-      while ((m = mathrmRegex.exec(text)) !== null) {
-        // Add text before mathrm
-        if (m.index > idx) {
-          const span = document.createElementNS(SVG_NS, "tspan")
-          span.setAttribute("font-style", defaultStyle)
-          span.textContent = text.slice(idx, m.index)
-          parentSpan.appendChild(span)
-        }
-        // Add mathrm content (roman)
-        const rmSpan = document.createElementNS(SVG_NS, "tspan")
-        rmSpan.setAttribute("font-style", "normal")
-        rmSpan.textContent = m[1]
-        parentSpan.appendChild(rmSpan)
-        idx = m.index + m[0].length
-      }
-      // Add remaining text
-      if (idx < text.length) {
-        const span = document.createElementNS(SVG_NS, "tspan")
-        span.setAttribute("font-style", defaultStyle)
-        span.textContent = text.slice(idx)
-        parentSpan.appendChild(span)
-      }
-    }
-
-    // Now parse and build the SVG structure
-    // Regex matches sub/sup markers, capturing content that may include nested mathrm markers
-    const regex = /\x00(sub|sup):((?:[^\x00\x01]|\x00mathrm:[^\x01]*\x01)*)\x01/g
-    let lastIndex = 0
-    let match
-
-    while ((match = regex.exec(processed)) !== null) {
-      // Add text before this match (may contain mathrm markers)
-      if (match.index > lastIndex) {
-        const beforeText = processed.slice(lastIndex, match.index)
-        processContent(beforeText, container, "italic")
-      }
-
-      const type = match[1]
-      const content = match[2]
-
-      if (type === "sub") {
-        // Subscript - may contain mathrm markers
-        const subSpan = document.createElementNS(SVG_NS, "tspan")
-        subSpan.setAttribute("baseline-shift", "sub")
-        subSpan.setAttribute("font-size", "70%")
-        processContent(content, subSpan, "italic")
-        container.appendChild(subSpan)
-      } else if (type === "sup") {
-        // Superscript - may contain mathrm markers
-        const supSpan = document.createElementNS(SVG_NS, "tspan")
-        supSpan.setAttribute("baseline-shift", "super")
-        supSpan.setAttribute("font-size", "70%")
-        processContent(content, supSpan, "italic")
-        container.appendChild(supSpan)
-      }
-
-      lastIndex = match.index + match[0].length
-    }
-
-    // Add remaining text (may contain mathrm markers)
-    if (lastIndex < processed.length) {
-      const remainingText = processed.slice(lastIndex)
-      processContent(remainingText, container, "italic")
-    }
-
+    this.parseMathExpression(mathContent, container, "italic")
     return container
   }
 
   /**
-   * Convert characters to subscript Unicode
+   * Recursively parse and render a math expression
    */
-  toSubscript(text) {
-    const subscriptMap = {
-      "0": "₀", "1": "₁", "2": "₂", "3": "₃", "4": "₄",
-      "5": "₅", "6": "₆", "7": "₇", "8": "₈", "9": "₉",
-      "a": "ₐ", "e": "ₑ", "h": "ₕ", "i": "ᵢ", "j": "ⱼ",
-      "k": "ₖ", "l": "ₗ", "m": "ₘ", "n": "ₙ", "o": "ₒ",
-      "p": "ₚ", "r": "ᵣ", "s": "ₛ", "t": "ₜ", "u": "ᵤ",
-      "v": "ᵥ", "x": "ₓ", "+": "₊", "-": "₋", "=": "₌",
-      "(": "₍", ")": "₎"
+  parseMathExpression(expr, parent, defaultStyle) {
+    let i = 0
+    let textBuffer = ""
+
+    const flushText = (style) => {
+      if (textBuffer) {
+        const span = document.createElementNS(SVG_NS, "tspan")
+        span.setAttribute("font-style", style)
+        span.textContent = textBuffer
+        parent.appendChild(span)
+        textBuffer = ""
+      }
     }
 
-    // Also handle common words
-    if (text === "eff") return "ₑff"
-    if (text === "mathrm{eff}") return "eff"
+    while (i < expr.length) {
+      if (expr[i] === "\\") {
+        // Handle LaTeX commands
+        const cmdMatch = expr.slice(i).match(/^\\([a-zA-Z]+)/)
+        if (cmdMatch) {
+          const cmd = cmdMatch[1]
+          i += cmdMatch[0].length
 
-    return text.split("").map(c => subscriptMap[c.toLowerCase()] || c).join("")
+          // Check for commands that take a braced argument
+          if (cmd === "mathrm" && expr[i] === "{") {
+            flushText(defaultStyle)
+            const end = this.findMatchingBrace(expr, i)
+            const content = expr.slice(i + 1, end)
+            // mathrm content is rendered in roman (normal) style, recursively parsed
+            this.parseMathExpression(content, parent, "normal")
+            i = end + 1
+          } else if (cmd === "mathcal" && expr[i] === "{") {
+            flushText(defaultStyle)
+            const end = this.findMatchingBrace(expr, i)
+            const content = expr.slice(i + 1, end)
+            textBuffer = this.toMathCaligraphic(content)
+            flushText(defaultStyle)
+            i = end + 1
+          } else {
+            // Replace known commands with symbols
+            const symbol = this.latexSymbol(cmd)
+            if (symbol) {
+              textBuffer += symbol
+            } else {
+              textBuffer += "\\" + cmd // Unknown command, keep as-is
+            }
+          }
+        } else {
+          textBuffer += expr[i]
+          i++
+        }
+      } else if (expr[i] === "_") {
+        // Subscript
+        flushText(defaultStyle)
+        i++
+        const subSpan = document.createElementNS(SVG_NS, "tspan")
+        subSpan.setAttribute("baseline-shift", "sub")
+        subSpan.setAttribute("font-size", "70%")
+
+        if (i < expr.length && expr[i] === "{") {
+          const end = this.findMatchingBrace(expr, i)
+          const content = expr.slice(i + 1, end)
+          this.parseMathExpression(content, subSpan, defaultStyle)
+          i = end + 1
+        } else if (i < expr.length) {
+          // Single character subscript
+          const charSpan = document.createElementNS(SVG_NS, "tspan")
+          charSpan.setAttribute("font-style", defaultStyle)
+          charSpan.textContent = expr[i]
+          subSpan.appendChild(charSpan)
+          i++
+        }
+        parent.appendChild(subSpan)
+      } else if (expr[i] === "^") {
+        // Superscript
+        flushText(defaultStyle)
+        i++
+        const supSpan = document.createElementNS(SVG_NS, "tspan")
+        supSpan.setAttribute("baseline-shift", "super")
+        supSpan.setAttribute("font-size", "70%")
+
+        if (i < expr.length && expr[i] === "{") {
+          const end = this.findMatchingBrace(expr, i)
+          const content = expr.slice(i + 1, end)
+          this.parseMathExpression(content, supSpan, defaultStyle)
+          i = end + 1
+        } else if (i < expr.length) {
+          // Single character superscript
+          const charSpan = document.createElementNS(SVG_NS, "tspan")
+          charSpan.setAttribute("font-style", defaultStyle)
+          charSpan.textContent = expr[i]
+          supSpan.appendChild(charSpan)
+          i++
+        }
+        parent.appendChild(supSpan)
+      } else if (expr[i] === "{") {
+        // Grouped content - parse recursively
+        flushText(defaultStyle)
+        const end = this.findMatchingBrace(expr, i)
+        const content = expr.slice(i + 1, end)
+        this.parseMathExpression(content, parent, defaultStyle)
+        i = end + 1
+      } else if (expr[i] === "}") {
+        // Stray closing brace - skip
+        i++
+      } else {
+        // Regular character
+        textBuffer += expr[i]
+        i++
+      }
+    }
+
+    flushText(defaultStyle)
   }
 
   /**
-   * Convert characters to superscript Unicode
+   * Find the position of the matching closing brace
    */
-  toSuperscript(text) {
-    const superscriptMap = {
-      "0": "⁰", "1": "¹", "2": "²", "3": "³", "4": "⁴",
-      "5": "⁵", "6": "⁶", "7": "⁷", "8": "⁸", "9": "⁹",
-      "a": "ᵃ", "b": "ᵇ", "c": "ᶜ", "d": "ᵈ", "e": "ᵉ",
-      "f": "ᶠ", "g": "ᵍ", "h": "ʰ", "i": "ⁱ", "j": "ʲ",
-      "k": "ᵏ", "l": "ˡ", "m": "ᵐ", "n": "ⁿ", "o": "ᵒ",
-      "p": "ᵖ", "r": "ʳ", "s": "ˢ", "t": "ᵗ", "u": "ᵘ",
-      "v": "ᵛ", "w": "ʷ", "x": "ˣ", "y": "ʸ", "z": "ᶻ",
-      "+": "⁺", "-": "⁻", "=": "⁼", "(": "⁽", ")": "⁾"
+  findMatchingBrace(str, openPos) {
+    let depth = 1
+    let i = openPos + 1
+    while (i < str.length && depth > 0) {
+      if (str[i] === "{") depth++
+      else if (str[i] === "}") depth--
+      i++
     }
+    return i - 1
+  }
 
-    return text.split("").map(c => superscriptMap[c.toLowerCase()] || c).join("")
+  /**
+   * Convert a LaTeX command name to its symbol
+   */
+  latexSymbol(cmd) {
+    const symbols = {
+      // Greek letters
+      chi: "χ", alpha: "α", beta: "β", gamma: "γ", delta: "δ",
+      epsilon: "ε", zeta: "ζ", eta: "η", theta: "θ", iota: "ι",
+      kappa: "κ", lambda: "λ", mu: "μ", nu: "ν", xi: "ξ",
+      pi: "π", rho: "ρ", sigma: "σ", tau: "τ", upsilon: "υ",
+      phi: "φ", psi: "ψ", omega: "ω",
+      Gamma: "Γ", Delta: "Δ", Theta: "Θ", Lambda: "Λ", Xi: "Ξ",
+      Pi: "Π", Sigma: "Σ", Phi: "Φ", Psi: "Ψ", Omega: "Ω",
+      // Symbols
+      infty: "∞", sum: "∑", prod: "∏", int: "∫",
+      partial: "∂", nabla: "∇", times: "×", cdot: "·",
+      pm: "±", mp: "∓", leq: "≤", geq: "≥", neq: "≠",
+      approx: "≈", equiv: "≡", rightarrow: "→", leftarrow: "←",
+      Rightarrow: "⇒", Leftarrow: "⇐", simeq: "≃",
+      otimes: "⊗", oplus: "⊕", subset: "⊂", supset: "⊃",
+      subseteq: "⊆", supseteq: "⊇", in: "∈", notin: "∉",
+      forall: "∀", exists: "∃", neg: "¬", land: "∧", lor: "∨",
+      hbar: "ℏ", to: "→", mapsto: "↦", sim: "∼", propto: "∝",
+      // Spacing (ignore)
+      ",": "", ";": " ", "!": "", quad: "  ", qquad: "    ",
+      // Misc
+      log: "log", sin: "sin", cos: "cos", tan: "tan",
+      exp: "exp", ln: "ln", lim: "lim", max: "max", min: "min"
+    }
+    return symbols[cmd] || null
   }
 
   /**
