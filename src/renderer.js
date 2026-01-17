@@ -326,6 +326,13 @@ export class Renderer {
     for (const segment of command.segments) {
       switch (segment.type) {
         case NodeType.LINE_SEGMENT:
+          if (style.decorate && style.decoration?.type === "brace") {
+            elements.push(this.renderBraceSegment(segment, style, strokeColor))
+            if (segment.edgeLabel) {
+              elements.push(...this.renderEdgeLabel(segment.from, segment.to, segment.edgeLabel))
+            }
+            break
+          }
           // Adjust endpoints based on actual node dimensions
           // The parser pre-calculates boundary points with estimated dimensions,
           // but we recalculate using actual measured dimensions
@@ -835,6 +842,56 @@ export class Renderer {
     circle.setAttribute("r", segment.radius * this.scale)
     this.applyStyle(circle, style, doStroke, doFill, strokeColor)
     return circle
+  }
+
+  renderBraceSegment(segment, style, strokeColor) {
+    const from = segment.from
+    const to = segment.to
+    const amplitude = style.decoration?.amplitude || 0.2
+
+    const isVertical = Math.abs(from.x - to.x) < Math.abs(from.y - to.y)
+    let pathData = ""
+
+    if (isVertical) {
+      const x = from.x
+      const y1 = from.y
+      const y2 = to.y
+      const dir = y2 >= y1 ? 1 : -1
+      const length = Math.abs(y2 - y1)
+      const a = amplitude * 3
+      const q = length / 4
+      const side = -1
+
+      pathData = [
+        `M ${this.toSvgX(x)} ${this.toSvgY(y1)}`,
+        `C ${this.toSvgX(x + side * a)} ${this.toSvgY(y1 + dir * q * 0.2)}, ${this.toSvgX(x + side * a)} ${this.toSvgY(y1 + dir * q * 0.8)}, ${this.toSvgX(x)} ${this.toSvgY(y1 + dir * q)}`,
+        `C ${this.toSvgX(x - side * a)} ${this.toSvgY(y1 + dir * q * 1.2)}, ${this.toSvgX(x - side * a)} ${this.toSvgY(y1 + dir * q * 1.8)}, ${this.toSvgX(x)} ${this.toSvgY(y1 + dir * q * 2)}`,
+        `C ${this.toSvgX(x - side * a)} ${this.toSvgY(y1 + dir * q * 2.2)}, ${this.toSvgX(x - side * a)} ${this.toSvgY(y1 + dir * q * 2.8)}, ${this.toSvgX(x)} ${this.toSvgY(y1 + dir * q * 3)}`,
+        `C ${this.toSvgX(x + side * a)} ${this.toSvgY(y1 + dir * q * 3.2)}, ${this.toSvgX(x + side * a)} ${this.toSvgY(y1 + dir * q * 3.8)}, ${this.toSvgX(x)} ${this.toSvgY(y2)}`
+      ].join(" ")
+    } else {
+      const y = from.y
+      const x1 = from.x
+      const x2 = to.x
+      const dir = x2 >= x1 ? 1 : -1
+      const length = Math.abs(x2 - x1)
+      const a = amplitude * 3
+      const q = length / 4
+      const side = -1
+
+      pathData = [
+        `M ${this.toSvgX(x1)} ${this.toSvgY(y)}`,
+        `C ${this.toSvgX(x1 + dir * q * 0.2)} ${this.toSvgY(y + side * a)}, ${this.toSvgX(x1 + dir * q * 0.8)} ${this.toSvgY(y + side * a)}, ${this.toSvgX(x1 + dir * q)} ${this.toSvgY(y)}`,
+        `C ${this.toSvgX(x1 + dir * q * 1.2)} ${this.toSvgY(y - side * a)}, ${this.toSvgX(x1 + dir * q * 1.8)} ${this.toSvgY(y - side * a)}, ${this.toSvgX(x1 + dir * q * 2)} ${this.toSvgY(y)}`,
+        `C ${this.toSvgX(x1 + dir * q * 2.2)} ${this.toSvgY(y - side * a)}, ${this.toSvgX(x1 + dir * q * 2.8)} ${this.toSvgY(y - side * a)}, ${this.toSvgX(x1 + dir * q * 3)} ${this.toSvgY(y)}`,
+        `C ${this.toSvgX(x1 + dir * q * 3.2)} ${this.toSvgY(y + side * a)}, ${this.toSvgX(x1 + dir * q * 3.8)} ${this.toSvgY(y + side * a)}, ${this.toSvgX(x2)} ${this.toSvgY(y)}`
+      ].join(" ")
+    }
+
+    const path = document.createElementNS(SVG_NS, "path")
+    path.setAttribute("d", pathData)
+    this.applyStyle(path, style, true, false, strokeColor)
+    return path
   }
 
   /**
@@ -1394,6 +1451,64 @@ export class Renderer {
             textBuffer = this.toMathCaligraphic(content)
             flushText(defaultStyle)
             i = end + 1
+          } else if (cmd === "displaystyle" || cmd === "textstyle" || cmd === "scriptstyle") {
+            flushText(defaultStyle)
+          } else if (cmd === "sqrt" && expr[i] === "{") {
+            flushText(defaultStyle)
+            const end = this.findMatchingBrace(expr, i)
+            const content = expr.slice(i + 1, end)
+            const sqrtSpan = document.createElementNS(SVG_NS, "tspan")
+            sqrtSpan.textContent = "√"
+            parent.appendChild(sqrtSpan)
+
+            const barSpan = document.createElementNS(SVG_NS, "tspan")
+            barSpan.setAttribute("dy", "-0.4em")
+            barSpan.setAttribute("font-size", "70%")
+            const barLength = Math.max(1, this.stripMathText(content).length)
+            barSpan.textContent = "‾".repeat(barLength)
+            parent.appendChild(barSpan)
+
+            const contentSpan = document.createElementNS(SVG_NS, "tspan")
+            contentSpan.setAttribute("dy", "0.4em")
+            this.parseMathExpression(content, contentSpan, defaultStyle)
+            parent.appendChild(contentSpan)
+            i = end + 1
+          } else if (cmd === "frac" && expr[i] === "{") {
+            flushText(defaultStyle)
+            const numEnd = this.findMatchingBrace(expr, i)
+            const numerator = expr.slice(i + 1, numEnd)
+            let j = numEnd + 1
+            if (expr[j] === "{") {
+              const denEnd = this.findMatchingBrace(expr, j)
+              const denominator = expr.slice(j + 1, denEnd)
+              const numLen = this.stripMathText(numerator).length
+              const denLen = this.stripMathText(denominator).length
+              const barLength = Math.max(1, Math.max(numLen, denLen))
+
+              const numSpan = document.createElementNS(SVG_NS, "tspan")
+              numSpan.setAttribute("dy", "-0.6em")
+              numSpan.setAttribute("font-size", "70%")
+              this.parseMathExpression(numerator, numSpan, defaultStyle)
+              parent.appendChild(numSpan)
+
+              const barSpan = document.createElementNS(SVG_NS, "tspan")
+              barSpan.setAttribute("dy", "0.4em")
+              barSpan.setAttribute("font-size", "70%")
+              barSpan.setAttribute("dx", `${-numLen * 0.6}em`)
+              barSpan.textContent = "―".repeat(barLength)
+              parent.appendChild(barSpan)
+
+              const denSpan = document.createElementNS(SVG_NS, "tspan")
+              denSpan.setAttribute("dy", "0.6em")
+              denSpan.setAttribute("font-size", "70%")
+              denSpan.setAttribute("dx", `${-barLength * 0.6}em`)
+              this.parseMathExpression(denominator, denSpan, defaultStyle)
+              parent.appendChild(denSpan)
+              i = denEnd + 1
+            } else {
+              this.parseMathExpression(numerator, parent, defaultStyle)
+              i = numEnd + 1
+            }
           } else {
             // Replace known commands with symbols
             const symbol = this.latexSymbol(cmd)
@@ -1469,6 +1584,10 @@ export class Renderer {
     }
 
     flushText(defaultStyle)
+  }
+
+  stripMathText(text) {
+    return text.replace(/\\[a-zA-Z]+/g, "").replace(/[{}]/g, "").trim()
   }
 
   /**

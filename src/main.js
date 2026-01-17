@@ -24,6 +24,7 @@ export const EXAMPLES = {
   projection: "/example/projection.tikz",
   decay: "/example/decay.tikz",
   entangled: "/example/entangled.tikz",
+  comparison: "/example/comparison.tikz",
   oriented: "/example/oriented.tikz",
   vortical: "/example/vortical.tikz",
   skyrmion: "/example/skyrmion.tikz",

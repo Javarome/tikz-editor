@@ -1,0 +1,49 @@
+\begin{tikzpicture}
+  \begin{axis}
+        [
+        width=12cm,
+        height=8cm,
+        title={Comparison of the Hubble parameter $H(z)$: Cosmochrony vs.\ $\Lambda$CDM},
+    xlabel={Redshift $z$},
+    ylabel={$H(z)$ [km\,s$^{-1}$\,Mpc$^{-1}$]},
+    xmin=0, xmax=2,
+    ymin=50, ymax=140,
+    xtick={0,0.5,1,1.5,2},
+    legend style={
+      at={(rel axis cs:0.98,0.02)},
+      anchor=south east,
+      draw=black,
+      fill=white,
+      fill opacity=0.9,
+      text opacity=1,
+      font=\small
+    },
+    grid=both,
+    grid style={line width=.1pt, draw=gray!10},
+    major grid style={line width=.2pt, draw=gray!40},
+    ]
+
+      % --- Baseline LCDM ---
+      \addplot[
+        domain=0:2, samples=200,
+        red, thick, mark=none
+      ]
+      {70*sqrt(0.3*(1+x)^3 + 0.7)};
+      \addlegendentry{$\Lambda$CDM (illustrative)}
+
+      % --- Cosmochrony band ---
+      \addplot[
+        domain=0:2, samples=200,
+        blue, thick, mark=none
+      ]
+      {70*sqrt(0.3*(1+x)^3 + 0.7) * (1 + 0.10*exp(-2*(x-1)^2))};
+      \addlegendentry{Cosmochrony (upper envelope)}
+
+      \addplot[
+        domain=0:2, samples=200,
+        blue, thick, dashed, mark=none
+      ]
+      {70*sqrt(0.3*(1+x)^3 + 0.7) * (1 + 0.05*exp(-2*(x-1)^2))};
+      \addlegendentry{Cosmochrony (lower envelope)}
+  \end{axis}
+\end{tikzpicture}

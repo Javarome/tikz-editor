@@ -465,7 +465,7 @@ export function parseOptions(options, baseStyle = null, scale = 1) {
           const cleanValue = value.replace(/^\{|\}$/g, "")
           const parts = cleanValue.split(",").map(p => p.trim())
           for (const part of parts) {
-            if (part === "snake" || part === "zigzag" || part === "coil") {
+            if (part === "snake" || part === "zigzag" || part === "coil" || part === "brace") {
               decoration.type = part
             } else if (part.startsWith("amplitude")) {
               const match = part.match(/amplitude\s*=\s*(-?\d+\.?\d*)(mm|cm|pt)?/)

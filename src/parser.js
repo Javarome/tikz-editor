@@ -1070,6 +1070,7 @@ export class Parser {
 
     // Check for edge label (node between -- and coordinate)
     let edgeLabel = null
+    let edgeLabelAfter = false
     if (this.peek()?.type === TokenType.NODE) {
       edgeLabel = this.parseEdgeLabel()
     }
@@ -1099,6 +1100,16 @@ export class Parser {
     } else if (result.nodeName) {
       // Only to is a node
       adjustedTo = this.coordSystem.getNodeBoundaryPoint(result.nodeName, fromPoint)
+    }
+
+    // Check for edge label after coordinate (e.g., -- (x,y) node[...]{...})
+    if (!edgeLabel && this.peek()?.type === TokenType.NODE) {
+      edgeLabel = this.parseEdgeLabel()
+      edgeLabelAfter = true
+    }
+
+    if (edgeLabelAfter && edgeLabel?.labelPosition && !edgeLabel.labelPosition.explicitPos) {
+      edgeLabel.labelPosition.pos = 1
     }
 
     return {
@@ -1163,7 +1174,8 @@ export class Parser {
       pos: 0.5, // Default: middle of edge
       offset: { x: 0, y: 0 },
       anchor: "center",
-      align: null // Will be set based on positioning
+      align: null, // Will be set based on positioning
+      explicitPos: false
     }
 
     for (const opt of options) {
@@ -1172,21 +1184,27 @@ export class Parser {
       switch (key) {
         case "pos":
           position.pos = parseFloat(value) || 0.5
+          position.explicitPos = true
           break
         case "midway":
           position.pos = 0.5
+          position.explicitPos = true
           break
         case "near start":
           position.pos = 0.25
+          position.explicitPos = true
           break
         case "near end":
           position.pos = 0.75
+          position.explicitPos = true
           break
         case "at start":
           position.pos = 0
+          position.explicitPos = true
           break
         case "at end":
           position.pos = 1
+          position.explicitPos = true
           break
         case "above":
           position.offset.y = this.parseDistance(value) || 0.4
@@ -1211,6 +1229,20 @@ export class Parser {
         case "sloped":
           position.sloped = true
           break
+        case "xshift": {
+          const dist = this.parseDistance(value)
+          if (dist !== null) {
+            position.offset.x += dist
+          }
+          break
+        }
+        case "yshift": {
+          const dist = this.parseDistance(value)
+          if (dist !== null) {
+            position.offset.y += dist
+          }
+          break
+        }
       }
     }
 
