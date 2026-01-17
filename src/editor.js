@@ -37,7 +37,20 @@ export class TikZEditor {
       console.error("TikZ Editor: Could not find required elements")
       return
     }
-    this.textarea = new Textarea(parent)
+    this.textarea = new Textarea(parent, `Enter TikZ code here...
+
+Example:
+\\draw[thick, ->] (0,0) -- (2,1);
+\\draw[red] (0,0) circle (0.5);
+\\node[draw] at (1,1) {Hello};">\\draw[thick, blue, ->] (0,0) -- (3,0);
+\\draw[thick, blue, ->] (0,0) -- (0,2);
+\\draw[red, thick] (0,0) -- (2,1.5);
+\\draw[dashed] (2,0) -- (2,1.5);
+\\draw[dashed] (0,1.5) -- (2,1.5);
+\\fill[red] (2,1.5) circle (0.08);
+\\node at (3,0) [below] {x};
+\\node at (0,2) [left] {y};
+\\node at (2,1.5) [above right] {P(2,1.5)};`)
 
     // Set up event listeners
     this.textarea.addEventListener("input", () => this.onInput())

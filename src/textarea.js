@@ -1,17 +1,18 @@
 import { basicSetup } from "codemirror"
-import { EditorView } from "@codemirror/view"
+import { EditorView, placeholder } from "@codemirror/view"
 import { EditorState } from "@codemirror/state"
 import { indentSelection } from "@codemirror/commands"
 
 export class Textarea extends EventTarget {
 
-  constructor(parent) {
+  constructor(parent, placeholderText) {
     super()
     this.editorView = new EditorView({
       parent,
       state: EditorState.create({
         extensions: [
           basicSetup,
+          placeholder(placeholderText),
           //          EditorView.lineWrapping,
           // tikzLang(),
           EditorView.updateListener.of((viewUpdate) => {
