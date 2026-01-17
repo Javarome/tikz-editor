@@ -1,5 +1,12 @@
-import { bracketMatching, LanguageSupport, StreamLanguage } from "@codemirror/language"
+import {
+  bracketMatching,
+  HighlightStyle,
+  LanguageSupport,
+  StreamLanguage,
+  syntaxHighlighting
+} from "@codemirror/language"
 import { autocompletion, closeBrackets } from "@codemirror/autocomplete"
+import { tags } from "@lezer/highlight"
 
 const tikzCompletionOptions = [
   { label: "\\draw", type: "keyword", detail: "path" },
@@ -78,6 +85,17 @@ const tikzLanguage = StreamLanguage.define({
   }
 })
 
+const tikzHighlightStyle = HighlightStyle.define([
+  { tag: tags.keyword, color: "#ffb86c" },
+  { tag: tags.atom, color: "#8be9fd" },
+  { tag: tags.variableName, color: "#c0e6ff" },
+  { tag: tags.number, color: "#f1fa8c" },
+  { tag: tags.operator, color: "#c7d2e3" },
+  { tag: tags.punctuation, color: "#c7d2e3" },
+  { tag: tags.bracket, color: "#c7d2e3" },
+  { tag: tags.comment, color: "#7a8599", fontStyle: "italic" }
+])
+
 export function tikz(config = {}) {
   const options = {
     enableAutocomplete: config.enableAutocomplete ?? true,
@@ -90,7 +108,8 @@ export function tikz(config = {}) {
       closeBrackets: { brackets: ["(", "[", "{", "'", "\""] },
       wordChars: "-_:"
     }),
-    bracketMatching()
+    bracketMatching(),
+    syntaxHighlighting(tikzHighlightStyle)
   ]
 
   if (options.autoCloseBrackets) {

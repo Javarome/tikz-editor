@@ -176,6 +176,34 @@ main {
   font-style: italic;
 }
 
+/* CodeMirror syntax highlighting */
+.cm-editor .cm-keyword {
+  color: #ffb86c;
+}
+
+.cm-editor .cm-atom {
+  color: #8be9fd;
+}
+
+.cm-editor .cm-variableName {
+  color: #c0e6ff;
+}
+
+.cm-editor .cm-number {
+  color: #f1fa8c;
+}
+
+.cm-editor .cm-operator,
+.cm-editor .cm-punctuation,
+.cm-editor .cm-bracket {
+  color: #c7d2e3;
+}
+
+.cm-editor .cm-comment {
+  color: #7a8599;
+  font-style: italic;
+}
+
 /* CodeMirror autocomplete popup */
 .cm-tooltip {
   background: #101827;
