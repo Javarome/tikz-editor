@@ -242,9 +242,26 @@ export class Parser {
       const valuesStr = this.advance().value
       // Split by comma and parse each value (or value tuple)
       const parts = valuesStr.split(",")
-      for (const part of parts) {
-        const trimmed = part.trim()
-        if (trimmed) {
+      const trimmedParts = parts.map(part => part.trim()).filter(Boolean)
+
+      const ellipsisIndex = trimmedParts.findIndex(part => part === "..." || part === "..")
+      if (ellipsisIndex !== -1 && varNames.length === 1) {
+        const start = parseFloat(trimmedParts[0])
+        const next = parseFloat(trimmedParts[1])
+        const end = parseFloat(trimmedParts[ellipsisIndex + 1])
+        if (Number.isFinite(start) && Number.isFinite(next) && Number.isFinite(end)) {
+          const step = next - start
+          if (step !== 0) {
+            const count = Math.floor((end - start) / step)
+            for (let i = 0; i <= count; i++) {
+              values.push(start + i * step)
+            }
+          }
+        }
+      }
+
+      if (values.length === 0) {
+        for (const trimmed of trimmedParts) {
           if (varNames.length > 1) {
             // Multi-variable: split by /
             const subParts = trimmed.split("/").map(s => s.trim())
@@ -1478,27 +1495,66 @@ export class Parser {
       }
     }
 
-    // Parse the plot expression: (\x, {expression})
+    // Parse the plot expression: (\x, {expression}) or ({x expr}, {y expr})
     // The coordinate contains the variable and expression
     let xVar = "\\x"
-    let expression = "0"
+    let xExpression = null
+    let yExpression = "0"
 
     if (this.peek()?.type === TokenType.COORDINATE) {
       const coordToken = this.advance()
-      const coordValue = coordToken.value
+      const coordValue = coordToken.value.trim()
+
+      const splitExpressions = (value) => {
+        let depth = 0
+        let current = ""
+        const expressions = []
+        for (const char of value) {
+          if (char === "{") {
+            depth++
+            current += char
+          } else if (char === "}") {
+            depth--
+            current += char
+          } else if (char === "," && depth === 0) {
+            expressions.push(current.trim())
+            current = ""
+          } else {
+            current += char
+          }
+        }
+        if (current.trim()) {
+          expressions.push(current.trim())
+        }
+        return expressions
+      }
+
+      const stripBraces = (value) => {
+        const trimmed = value.trim()
+        if (trimmed.startsWith("{") && trimmed.endsWith("}")) {
+          return trimmed.slice(1, -1).trim()
+        }
+        return trimmed
+      }
 
       // Parse (\x, {expression}) format
       // The expression might be wrapped in braces
       const plotMatch = coordValue.match(/^(\\[a-z]+)\s*,\s*\{(.+)\}$/)
       if (plotMatch) {
         xVar = plotMatch[1]
-        expression = plotMatch[2]
+        yExpression = plotMatch[2]
       } else {
-        // Try simpler format: (\x, expression)
-        const simpleMatch = coordValue.match(/^(\\[a-z]+)\s*,\s*(.+)$/)
-        if (simpleMatch) {
-          xVar = simpleMatch[1]
-          expression = simpleMatch[2]
+        const expressions = splitExpressions(coordValue)
+        if (expressions.length === 2) {
+          xExpression = stripBraces(expressions[0])
+          yExpression = stripBraces(expressions[1])
+        } else {
+          // Try simpler format: (\x, expression)
+          const simpleMatch = coordValue.match(/^(\\[a-z]+)\s*,\s*(.+)$/)
+          if (simpleMatch) {
+            xVar = simpleMatch[1]
+            yExpression = simpleMatch[2]
+          }
         }
       }
     }
@@ -1509,8 +1565,11 @@ export class Parser {
 
     for (let i = 0; i < samples; i++) {
       const x = domain.min + i * step
-      const y = this.evaluateExpression(expression, xVar, x)
-      points.push(new Point(x, y))
+      const plotX = xExpression
+        ? this.evaluateExpression(xExpression, xVar, x)
+        : x
+      const plotY = this.evaluateExpression(yExpression, xVar, x)
+      points.push(new Point(plotX, plotY))
     }
 
     return new ASTNode(NodeType.PLOT_SEGMENT, {
@@ -1518,7 +1577,7 @@ export class Parser {
       points,
       domain,
       samples,
-      expression
+      expression: yExpression
     })
   }
 
@@ -1537,17 +1596,16 @@ export class Parser {
       }
 
       // Handle TikZ's 'r' suffix for radians (e.g., "2*pi*x r" means the result is in radians)
-      // In TikZ, sin(x r) means x is in radians, otherwise degrees
-      // We'll convert degrees to radians for trig functions
-      expr = expr.replace(/\s+r\b/g, "") // Remove 'r' suffix - we'll use radians
-
       // Replace pi with Math.PI
       expr = expr.replace(/\bpi\b/g, `(${Math.PI})`)
 
-      // Replace trig functions
-      expr = expr.replace(/\bsin\s*\(/g, "Math.sin(")
-      expr = expr.replace(/\bcos\s*\(/g, "Math.cos(")
-      expr = expr.replace(/\btan\s*\(/g, "Math.tan(")
+      // Replace trig functions (degrees by default, radians when suffix "r" is used)
+      expr = expr.replace(/\bsin\s*\(\s*([^)]+?)\s+r\s*\)/g, "Math.sin($1)")
+      expr = expr.replace(/\bcos\s*\(\s*([^)]+?)\s+r\s*\)/g, "Math.cos($1)")
+      expr = expr.replace(/\btan\s*\(\s*([^)]+?)\s+r\s*\)/g, "Math.tan($1)")
+      expr = expr.replace(/\bsin\s*\(\s*([^)]+?)\s*\)/g, "Math.sin(($1) * Math.PI / 180)")
+      expr = expr.replace(/\bcos\s*\(\s*([^)]+?)\s*\)/g, "Math.cos(($1) * Math.PI / 180)")
+      expr = expr.replace(/\btan\s*\(\s*([^)]+?)\s*\)/g, "Math.tan(($1) * Math.PI / 180)")
       expr = expr.replace(/\bsqrt\s*\(/g, "Math.sqrt(")
       expr = expr.replace(/\babs\s*\(/g, "Math.abs(")
       expr = expr.replace(/\bexp\s*\(/g, "Math.exp(")

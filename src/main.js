@@ -23,7 +23,9 @@ export const EXAMPLES = {
   concentric: "/example/concentric.tikz",
   projection: "/example/projection.tikz",
   decay: "/example/decay.tikz",
-  entangled: "/example/entangled.tikz"
+  entangled: "/example/entangled.tikz",
+  oriented: "/example/oriented.tikz",
+  vortical: "/example/vortical.tikz"
 }
 // Example selector
 const exampleSelect = document.getElementById("example-select")
