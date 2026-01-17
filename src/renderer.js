@@ -589,6 +589,7 @@ export class Renderer {
     const elements = []
     const settings = command.settings || {}
     const plots = command.plots || []
+    const fills = command.fills || []
     const { width, height } = this.getAxisDimensions(settings)
     const origin = command.origin || { x: 0, y: 0 }
     const ranges = this.getAxisRanges(settings, plots)
@@ -686,6 +687,47 @@ export class Renderer {
     this.defs.appendChild(clipPath)
     plotGroup.setAttribute("clip-path", `url(#${clipId})`)
 
+    const plotByName = new Map()
+    for (const plot of plots) {
+      if (plot.namePath) {
+        plotByName.set(plot.namePath, plot)
+      }
+    }
+
+    for (const fill of fills) {
+      const fromPlot = plotByName.get(fill.source)
+      const toPlot = plotByName.get(fill.target)
+      if (!fromPlot?.points || !toPlot?.points) continue
+
+      const forward = fromPlot.points.map(point => ({
+        x: mapX(point.x),
+        y: mapY(point.y)
+      }))
+      const backward = [...toPlot.points].reverse().map(point => ({
+        x: mapX(point.x),
+        y: mapY(point.y)
+      }))
+      if (!forward.length || !backward.length) continue
+
+      let pathData = ""
+      forward.forEach((point, index) => {
+        pathData += `${index === 0 ? "M" : "L"} ${this.toSvgX(point.x)} ${this.toSvgY(point.y)} `
+      })
+      backward.forEach(point => {
+        pathData += `L ${this.toSvgX(point.x)} ${this.toSvgY(point.y)} `
+      })
+      pathData += "Z"
+
+      const fillPath = document.createElementNS(SVG_NS, "path")
+      fillPath.setAttribute("d", pathData)
+      const fillStyle = fill.style || {}
+      if (!fillStyle.fill) {
+        fillStyle.fill = "#999999"
+      }
+      this.applyStyle(fillPath, fillStyle, false, true, this.defaultStroke)
+      plotGroup.appendChild(fillPath)
+    }
+
     for (const plot of plots) {
       if (!plot.points || plot.points.length === 0) continue
       let pathData = ""
@@ -698,8 +740,11 @@ export class Renderer {
       const path = document.createElementNS(SVG_NS, "path")
       path.setAttribute("d", pathData)
       const strokeColor = plot.style?.stroke || this.defaultStroke
-      this.applyStyle(path, plot.style || {}, true, false, strokeColor)
-      plotGroup.appendChild(path)
+      const doStroke = plot.style?.stroke !== "none"
+      if (doStroke) {
+        this.applyStyle(path, plot.style || {}, true, false, strokeColor)
+        plotGroup.appendChild(path)
+      }
     }
     elements.push(plotGroup)
 
@@ -722,7 +767,16 @@ export class Renderer {
 
     if ((command.legendEntries || []).length > 0) {
       const legendStyle = this.parseLegendStyle(settings.legendStyle)
-      const legendElements = this.renderAxisLegend(command.legendEntries, plots, origin, width, height, legendStyle)
+      if (settings.legendPos) {
+        const pos = settings.legendPos.toLowerCase()
+        if (pos.includes("north")) legendStyle.relPos.y = 0.98
+        if (pos.includes("south")) legendStyle.relPos.y = 0.02
+        if (pos.includes("east")) legendStyle.relPos.x = 0.98
+        if (pos.includes("west")) legendStyle.relPos.x = 0.02
+        legendStyle.anchor = pos
+      }
+      const legendItems = command.legendItems || null
+      const legendElements = this.renderAxisLegend(command.legendEntries, plots, origin, width, height, legendStyle, legendItems)
       elements.push(...legendElements)
     }
 
@@ -757,7 +811,7 @@ export class Renderer {
     return group
   }
 
-  renderAxisLegend(entries, plots, origin, width, height, legendStyle) {
+  renderAxisLegend(entries, plots, origin, width, height, legendStyle, legendItems = null) {
     const elements = []
     const lineHeight = 0.5
     const labelPadding = 0.25
@@ -805,19 +859,32 @@ export class Renderer {
       const y = boxY + boxHeight - 0.3 - index * lineHeight
       const xStart = boxX + 0.3
       const xEnd = xStart + lineLength
-      const plot = plots[index] || {}
-      const strokeColor = plot.style?.stroke || this.defaultStroke
-      const line = document.createElementNS(SVG_NS, "line")
-      line.setAttribute("x1", this.toSvgX(xStart))
-      line.setAttribute("y1", this.toSvgY(y))
-      line.setAttribute("x2", this.toSvgX(xEnd))
-      line.setAttribute("y2", this.toSvgY(y))
-      line.setAttribute("stroke", strokeColor)
-      line.setAttribute("stroke-width", (plot.style?.lineWidth || 0.4) * 2)
-      if (plot.style?.dashPattern) {
-        line.setAttribute("stroke-dasharray", plot.style.dashPattern.map(v => v * 2).join(" "))
+      const legendItem = legendItems?.[index]?.item || plots[index] || {}
+      if (legendItem?.type === "fillBetween") {
+        const rect = document.createElementNS(SVG_NS, "rect")
+        rect.setAttribute("x", this.toSvgX(xStart))
+        rect.setAttribute("y", this.toSvgY(y + 0.2))
+        rect.setAttribute("width", lineLength * this.scale)
+        rect.setAttribute("height", 0.2 * this.scale)
+        rect.setAttribute("fill", legendItem.style?.fill || "#999999")
+        rect.setAttribute("fill-opacity", legendItem.style?.fillOpacity ?? 0.25)
+        rect.setAttribute("stroke", legendStyle.draw)
+        rect.setAttribute("stroke-width", 0.4)
+        elements.push(rect)
+      } else {
+        const strokeColor = legendItem.style?.stroke || this.defaultStroke
+        const line = document.createElementNS(SVG_NS, "line")
+        line.setAttribute("x1", this.toSvgX(xStart))
+        line.setAttribute("y1", this.toSvgY(y))
+        line.setAttribute("x2", this.toSvgX(xEnd))
+        line.setAttribute("y2", this.toSvgY(y))
+        line.setAttribute("stroke", strokeColor)
+        line.setAttribute("stroke-width", (legendItem.style?.lineWidth || 0.4) * 2)
+        if (legendItem.style?.dashPattern) {
+          line.setAttribute("stroke-dasharray", legendItem.style.dashPattern.map(v => v * 2).join(" "))
+        }
+        elements.push(line)
       }
-      elements.push(line)
 
       const label = this.renderAxisText(entry, xEnd + labelPadding, y, {
         anchor: "start",

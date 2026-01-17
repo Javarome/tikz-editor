@@ -1,0 +1,40 @@
+\begin{tikzpicture}
+  \begin{axis}
+        [
+        width=0.92\linewidth,
+    height=0.48\linewidth,
+    xlabel={$z$},
+    ylabel={$H(z)$ [km\,s$^{-1}$\,Mpc$^{-1}$]},
+    xmin=0, xmax=3.0,
+    ymin=60, ymax=260,
+    legend pos=north west,
+    grid=both,
+    samples=200,
+    domain=0:3
+    ]
+
+      % --- LCDM benchmark (late-time; radiation neglected in the plot range) ---
+      \addplot+[thick]
+        {70*sqrt(0.3*(1+x)^3 + 0.7)};
+      \addlegendentry{$\Lambda$CDM ($H_0=70,\ \Omega_m=0.3,\ \Omega_\Lambda=0.7$)}
+
+      % --- Cosmochrony illustrative band: vary H0 in [67,73] and Omega_chi in [0.25,0.35] ---
+      % Lower envelope: H0=67, Omega_chi=0.35
+      \addplot[name path=chiLow, draw=none]
+      {67*(1+x)*sqrt(1-0.35)};
+
+      % Upper envelope: H0=73, Omega_chi=0.25
+      \addplot[name path=chiHigh, draw=none]
+      {73*(1+x)*sqrt(1-0.25)};
+
+      \addplot[fill opacity=0.25]
+      fill between[of=chiLow and chiHigh];
+      \addlegendentry{Cosmochrony (illustrative band: $H_0\in[67,73]$, $\Omega_\chi\in[0.25,0.35]$)}
+
+      % Central illustrative Cosmochrony curve: H0=70, Omega_chi=0.30
+      \addplot+[thick, dashed]
+        {70*(1+x)*sqrt(1-0.30)};
+      \addlegendentry{Cosmochrony central ($H_0=70,\ \Omega_\chi=0.30$)}
+
+  \end{axis}
+\end{tikzpicture}

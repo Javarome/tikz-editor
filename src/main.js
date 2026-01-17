@@ -28,7 +28,8 @@ export const EXAMPLES = {
   oriented: "/example/oriented.tikz",
   vortical: "/example/vortical.tikz",
   skyrmion: "/example/skyrmion.tikz",
-  spectral: "/example/spectral.tikz"
+  spectral: "/example/spectral.tikz",
+  hubble: "/example/hubble.tikz"
 }
 // Example selector
 const exampleSelect = document.getElementById("example-select")
