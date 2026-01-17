@@ -99,6 +99,12 @@ export class Parser {
         this.match(TokenType.SEMICOLON)
       }
     }
+    if (document.commands.length <= 0) {
+      this.errors.push({
+        message: "No Tikz commands found",
+        position: { line: 0, column: 0 }
+      })
+    }
 
     return { ast: document, errors: this.errors, coordSystem: this.coordSystem }
   }

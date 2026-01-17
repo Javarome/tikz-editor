@@ -26,21 +26,36 @@ export const EXAMPLES = {
 }
 // Example selector
 const exampleSelect = document.getElementById("example-select")
+
+async function load(url) {
+  try {
+    const response = await fetch(url)
+    if (!response.ok) {
+      alert(response.statusText)
+      return
+    }
+    const example = await response.text()
+    if (example) {
+      editor.setValue(example)
+    }
+  } catch (e) {
+    alert(`Could not load ${url}: ${e.message}`)
+  }
+}
+
+const searchParams = new URLSearchParams(window.location.search)
+let url = searchParams.get("file")
+if (url) {
+  load(url)
+}
+
 exampleSelect.addEventListener("change", async () => {
   let url = EXAMPLES[exampleSelect.value]
   if (!url) {
     alert(`Could not find example with ID "${exampleSelect.value}"`)
     return
   }
-  const response = await fetch(url)
-  if (!response.ok) {
-    alert(response.statusText)
-    return
-  }
-  const example = await response.text()
-  if (example) {
-    editor.setValue(example)
-  }
+  await load(url)
 })
 
 // Resizable divider
