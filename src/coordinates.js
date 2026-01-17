@@ -104,8 +104,8 @@ export class CoordinateSystem {
       return point
     }
 
-    // Check for node anchor (name.anchor)
-    const anchorMatch = trimmed.match(/^([a-zA-Z_][a-zA-Z0-9_-]*)\.([a-zA-Z]+)$/)
+    // Check for node anchor (name.anchor), allowing compound anchors like "north west"
+    const anchorMatch = trimmed.match(/^([a-zA-Z_][a-zA-Z0-9_-]*)\.([a-zA-Z]+(?:\s+[a-zA-Z]+)?)$/)
     if (anchorMatch) {
       const nodeName = anchorMatch[1]
       const anchorName = anchorMatch[2]
@@ -236,8 +236,9 @@ export class CoordinateSystem {
 
     const center = node.center
     const shape = node.shape || "rectangle"
-    const width = node.width || 1
-    const height = node.height || 0.5
+    // Use actual dimensions, with small fallback for unspecified sizes
+    const width = (node.width !== undefined && node.width !== null) ? node.width : 0.2
+    const height = (node.height !== undefined && node.height !== null) ? node.height : 0.2
 
     // Direction vector from center to target
     const dx = targetPoint.x - center.x

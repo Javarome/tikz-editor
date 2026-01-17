@@ -423,15 +423,32 @@ export class Parser {
     // Parse node options for shape, size, etc. (pass text for dimension estimation)
     const nodeOptions = this.parseNodeOptions(options, text)
 
+    // Calculate actual node dimensions for registration
+    // For empty nodes, size is based on innerSep; for nodes with text, estimate from text length
+    let regWidth = nodeOptions.width
+    let regHeight = nodeOptions.height
+    if (regWidth === 0 && regHeight === 0) {
+      if (text) {
+        // Estimate from text length (rough approximation)
+        const textLen = text.replace(/\\[a-z]+/g, "").length
+        regWidth = Math.max(textLen * 0.12 + nodeOptions.innerSep * 2, nodeOptions.innerSep * 2)
+        regHeight = nodeOptions.innerSep * 2 + 0.3 // Add some height for text
+      } else {
+        // Empty node - size is 2 * innerSep
+        regWidth = nodeOptions.innerSep * 2
+        regHeight = nodeOptions.innerSep * 2
+      }
+    }
+
     // Register the node if it has a name
     if (name) {
       const anchors = this.coordSystem.calculateAnchors(
         position,
         nodeOptions.shape,
-        nodeOptions.width,
-        nodeOptions.height
+        regWidth,
+        regHeight
       )
-      this.coordSystem.registerNode(name, position, anchors, nodeOptions.shape, nodeOptions.width, nodeOptions.height)
+      this.coordSystem.registerNode(name, position, anchors, nodeOptions.shape, regWidth, regHeight)
     }
 
     return new ASTNode(NodeType.NODE, {
@@ -612,9 +629,9 @@ export class Parser {
     const result = {
       shape: "rectangle",
       anchor: "center",
-      width: 1,
-      height: 0.5,
-      innerSep: 0.3333,
+      width: 0,      // No minimum - size from content/innerSep
+      height: 0,     // No minimum - size from content/innerSep
+      innerSep: 0.1, // Default inner sep in cm (about 1mm)
       outerSep: 0.5,
       draw: false,
       fill: null,
@@ -652,7 +669,7 @@ export class Parser {
           result.width = result.height = this.parseDistance(value) || 1
           break
         case "inner sep":
-          result.innerSep = this.parseDistance(value) || 0.3333
+          result.innerSep = this.parseDistance(value) || 0.1
           break
         case "outer sep":
           result.outerSep = this.parseDistance(value) || 0.5
@@ -1540,15 +1557,29 @@ export class Parser {
     // Parse node options (pass text for dimension estimation)
     const nodeOptions = this.parseNodeOptions(options, text)
 
+    // Calculate actual node dimensions for registration
+    let regWidth = nodeOptions.width
+    let regHeight = nodeOptions.height
+    if (regWidth === 0 && regHeight === 0) {
+      if (text) {
+        const textLen = text.replace(/\\[a-z]+/g, "").length
+        regWidth = Math.max(textLen * 0.12 + nodeOptions.innerSep * 2, nodeOptions.innerSep * 2)
+        regHeight = nodeOptions.innerSep * 2 + 0.3
+      } else {
+        regWidth = nodeOptions.innerSep * 2
+        regHeight = nodeOptions.innerSep * 2
+      }
+    }
+
     // Register the node
     if (name) {
       const anchors = this.coordSystem.calculateAnchors(
         fromPoint,
         nodeOptions.shape,
-        nodeOptions.width,
-        nodeOptions.height
+        regWidth,
+        regHeight
       )
-      this.coordSystem.registerNode(name, fromPoint, anchors, nodeOptions.shape, nodeOptions.width, nodeOptions.height)
+      this.coordSystem.registerNode(name, fromPoint, anchors, nodeOptions.shape, regWidth, regHeight)
     }
 
     return new ASTNode(NodeType.NODE, {

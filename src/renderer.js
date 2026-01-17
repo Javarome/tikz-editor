@@ -164,10 +164,12 @@ export class Renderer {
         // Average character width ~0.12cm for serif font at default size
         const textLen = node.text.replace(/\\[a-z]+/g, "").length
         w = Math.max(node.width || 0, textLen * 0.12 + 0.3)
-        h = node.height || 0.5
+        h = Math.max(node.height || 0, 0.5)
       } else {
-        w = node.width || 1
-        h = node.height || 0.5
+        // Empty node - size based on innerSep (default ~1mm = 0.1cm)
+        const innerSep = node.innerSep || 0.1
+        w = node.width || innerSep * 2
+        h = node.height || innerSep * 2
       }
       const anchor = node.anchor || "center"
 
