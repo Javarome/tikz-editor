@@ -2,7 +2,7 @@ import { basicSetup } from "codemirror"
 import { EditorView, placeholder } from "@codemirror/view"
 import { EditorState } from "@codemirror/state"
 import { indentSelection } from "@codemirror/commands"
-import { latex } from "codemirror-lang-latex"
+import { tikz } from "./tikz-language.js"
 
 export class Textarea extends EventTarget {
 
@@ -15,10 +15,9 @@ export class Textarea extends EventTarget {
           basicSetup,
           placeholder(placeholderText),
           //          EditorView.lineWrapping,
-          latex({
-            autoCloseTags: true,    // Auto-close environments
-            enableLinting: false,    // Enable linting
-            enableTooltips: false    // Enable hover tooltips
+          tikz({
+            autoCloseBrackets: true,
+            enableAutocomplete: true
           }),
           EditorView.updateListener.of((viewUpdate) => {
             if (viewUpdate.docChanged) {

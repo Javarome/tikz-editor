@@ -23,7 +23,10 @@ export const NodeType = {
   RECTANGLE: "RECTANGLE",
   GRID: "GRID",
   PLOT_SEGMENT: "PLOT_SEGMENT",
-  CYCLE: "CYCLE"
+  CYCLE: "CYCLE",
+  // pgfplots support
+  AXIS: "AXIS",
+  ADDPLOT: "ADDPLOT"
 }
 
 export class ASTNode {
