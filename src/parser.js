@@ -4,7 +4,7 @@
 
 import { Lexer, TokenType } from "./lexer.js"
 import { CoordinateSystem, parseCoordinateToken, Point } from "./coordinates.js"
-import { parseOptions } from "./styles.js"
+import { parseDistanceCm, parseOptions } from "./styles.js"
 import { createPgfplotsModule } from "./modules/pgfplots.js"
 
 // AST Node Types
@@ -351,6 +351,28 @@ export class Parser {
 
       // Check for global font setting
       const [key, value] = this.parseOptionKeyValue(opt)
+      if (key === "x") {
+        const parsed = parseDistanceCm(value)
+        this.coordSystem.setAxisScale("x", parsed)
+        continue
+      }
+      if (key === "y") {
+        const parsed = parseDistanceCm(value)
+        this.coordSystem.setAxisScale("y", parsed)
+        continue
+      }
+      if (key === "z") {
+        const parsed = parseDistanceCm(value)
+        this.coordSystem.setAxisScale("z", parsed)
+        continue
+      }
+      if (key === "scale") {
+        const parsed = parseFloat(value)
+        if (Number.isFinite(parsed)) {
+          this.coordSystem.setGlobalScale(parsed)
+        }
+        continue
+      }
       if (key === "font") {
         this.defaultFontSize = this.parseFontSize(value)
       }
@@ -1495,11 +1517,12 @@ export class Parser {
       }
     }
 
-    // Parse the plot expression: (\x, {expression}) or ({x expr}, {y expr})
-    // The coordinate contains the variable and expression
+    // Parse the plot expression: (\x, {expression}) or ({x expr}, {y expr}, {z expr})
+    // The coordinate contains the variable and expression(s)
     let xVar = "\\x"
     let xExpression = null
     let yExpression = "0"
+    let zExpression = null
 
     if (this.peek()?.type === TokenType.COORDINATE) {
       const coordToken = this.advance()
@@ -1548,6 +1571,10 @@ export class Parser {
         if (expressions.length === 2) {
           xExpression = stripBraces(expressions[0])
           yExpression = stripBraces(expressions[1])
+        } else if (expressions.length === 3) {
+          xExpression = stripBraces(expressions[0])
+          yExpression = stripBraces(expressions[1])
+          zExpression = stripBraces(expressions[2])
         } else {
           // Try simpler format: (\x, expression)
           const simpleMatch = coordValue.match(/^(\\[a-z]+)\s*,\s*(.+)$/)
@@ -1569,7 +1596,11 @@ export class Parser {
         ? this.evaluateExpression(xExpression, xVar, x)
         : x
       const plotY = this.evaluateExpression(yExpression, xVar, x)
-      points.push(new Point(plotX, plotY))
+      const plotZ = zExpression
+        ? this.evaluateExpression(zExpression, xVar, x)
+        : 0
+      const projected = this.coordSystem.project3D(plotX, plotY, plotZ)
+      points.push(projected)
     }
 
     return new ASTNode(NodeType.PLOT_SEGMENT, {
@@ -1596,13 +1627,13 @@ export class Parser {
       }
 
       // Handle TikZ's 'r' suffix for radians (e.g., "2*pi*x r" means the result is in radians)
+      // Convert radians suffix to degrees for trig handling
+      expr = expr.replace(/\s+r\b/g, " * 180 / Math.PI")
+
       // Replace pi with Math.PI
       expr = expr.replace(/\bpi\b/g, `(${Math.PI})`)
 
-      // Replace trig functions (degrees by default, radians when suffix "r" is used)
-      expr = expr.replace(/\bsin\s*\(\s*([^)]+?)\s+r\s*\)/g, "Math.sin($1)")
-      expr = expr.replace(/\bcos\s*\(\s*([^)]+?)\s+r\s*\)/g, "Math.cos($1)")
-      expr = expr.replace(/\btan\s*\(\s*([^)]+?)\s+r\s*\)/g, "Math.tan($1)")
+      // Replace trig functions (TikZ uses degrees by default)
       expr = expr.replace(/\bsin\s*\(\s*([^)]+?)\s*\)/g, "Math.sin(($1) * Math.PI / 180)")
       expr = expr.replace(/\bcos\s*\(\s*([^)]+?)\s*\)/g, "Math.cos(($1) * Math.PI / 180)")
       expr = expr.replace(/\btan\s*\(\s*([^)]+?)\s*\)/g, "Math.tan(($1) * Math.PI / 180)")

@@ -39,10 +39,38 @@ export class CoordinateSystem {
     this.namedCoordinates = new Map()
     this.nodes = new Map()
     this.currentPosition = new Point(0, 0)
+    this.currentPosition3D = { x: 0, y: 0, z: 0 }
+    this.axisScale = { x: 1, y: 1, z: 1 }
+    this.globalScale = 1
+    this.zProjection = { x: 1, y: 1 }
   }
 
   reset() {
     this.currentPosition = new Point(0, 0)
+    this.currentPosition3D = { x: 0, y: 0, z: 0 }
+  }
+
+  setAxisScale(axis, value) {
+    if (!Number.isFinite(value)) return
+    if (axis === "x" || axis === "y" || axis === "z") {
+      this.axisScale[axis] = value
+    }
+  }
+
+  setGlobalScale(value) {
+    if (Number.isFinite(value)) {
+      this.globalScale = value
+    }
+  }
+
+  project3D(x, y, z) {
+    const scaledX = x * this.axisScale.x * this.globalScale
+    const scaledY = y * this.axisScale.y * this.globalScale
+    const scaledZ = z * this.axisScale.z * this.globalScale
+    return new Point(
+      scaledX + scaledZ * this.zProjection.x,
+      scaledY + scaledZ * this.zProjection.y
+    )
   }
 
   setNamedCoordinate(name, point) {
@@ -72,36 +100,75 @@ export class CoordinateSystem {
       const radius = parseFloat(polarMatch[2])
       const x = radius * Math.cos((angle * Math.PI) / 180)
       const y = radius * Math.sin((angle * Math.PI) / 180)
-      let point = new Point(x, y)
+      let point3D = { x, y, z: 0 }
 
       if (isRelative) {
-        point = this.currentPosition.add(point)
+        point3D = {
+          x: this.currentPosition3D.x + point3D.x,
+          y: this.currentPosition3D.y + point3D.y,
+          z: this.currentPosition3D.z
+        }
       }
 
+      const projected = this.project3D(point3D.x, point3D.y, point3D.z)
       if (updatePosition) {
-        this.currentPosition = point
+        this.currentPosition3D = point3D
+        this.currentPosition = projected
       }
 
-      return point
+      return projected
+    }
+
+    // Check for 3D Cartesian coordinates (x, y, z)
+    const cartesian3dMatch = trimmed.match(/^(-?\d+\.?\d*)\s*,\s*(-?\d+\.?\d*)\s*,\s*(-?\d+\.?\d*)$/)
+    if (cartesian3dMatch) {
+      let point3D = {
+        x: parseFloat(cartesian3dMatch[1]),
+        y: parseFloat(cartesian3dMatch[2]),
+        z: parseFloat(cartesian3dMatch[3])
+      }
+
+      if (isRelative) {
+        point3D = {
+          x: this.currentPosition3D.x + point3D.x,
+          y: this.currentPosition3D.y + point3D.y,
+          z: this.currentPosition3D.z + point3D.z
+        }
+      }
+
+      const projected = this.project3D(point3D.x, point3D.y, point3D.z)
+      if (updatePosition) {
+        this.currentPosition3D = point3D
+        this.currentPosition = projected
+      }
+
+      return projected
     }
 
     // Check for Cartesian coordinates (x, y)
     const cartesianMatch = trimmed.match(/^(-?\d+\.?\d*)\s*,\s*(-?\d+\.?\d*)$/)
     if (cartesianMatch) {
-      let point = new Point(
-        parseFloat(cartesianMatch[1]),
-        parseFloat(cartesianMatch[2])
-      )
+      let point3D = {
+        x: parseFloat(cartesianMatch[1]),
+        y: parseFloat(cartesianMatch[2]),
+        z: 0
+      }
 
       if (isRelative) {
-        point = this.currentPosition.add(point)
+        point3D = {
+          x: this.currentPosition3D.x + point3D.x,
+          y: this.currentPosition3D.y + point3D.y,
+          z: this.currentPosition3D.z
+        }
       }
 
+      const projected = this.project3D(point3D.x, point3D.y, point3D.z)
       if (updatePosition) {
-        this.currentPosition = point
+        this.currentPosition3D = point3D
+        this.currentPosition = projected
       }
 
-      return point
+      return projected
     }
 
     // Check for node anchor (name.anchor), allowing compound anchors like "north west"
@@ -136,6 +203,7 @@ export class CoordinateSystem {
         const point = this.nodes.get(name).center
         if (updatePosition) {
           this.currentPosition = point
+          this.currentPosition3D = { x: point.x, y: point.y, z: 0 }
         }
         return point
       }
@@ -145,6 +213,7 @@ export class CoordinateSystem {
         const point = this.namedCoordinates.get(name)
         if (updatePosition) {
           this.currentPosition = point
+          this.currentPosition3D = { x: point.x, y: point.y, z: 0 }
         }
         return point
       }
