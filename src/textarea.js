@@ -2,6 +2,7 @@ import { basicSetup } from "codemirror"
 import { EditorView, placeholder } from "@codemirror/view"
 import { EditorState } from "@codemirror/state"
 import { indentSelection } from "@codemirror/commands"
+import { latex } from "codemirror-lang-latex"
 
 export class Textarea extends EventTarget {
 
@@ -14,7 +15,7 @@ export class Textarea extends EventTarget {
           basicSetup,
           placeholder(placeholderText),
           //          EditorView.lineWrapping,
-          // tikzLang(),
+          latex(),
           EditorView.updateListener.of((viewUpdate) => {
             if (viewUpdate.docChanged) {
               this.dispatchEvent(new UIEvent("input"))
