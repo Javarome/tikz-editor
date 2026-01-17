@@ -5,6 +5,7 @@
 import { Lexer, TokenType } from "./lexer.js"
 import { CoordinateSystem, parseCoordinateToken, Point } from "./coordinates.js"
 import { parseOptions } from "./styles.js"
+import { createPgfplotsModule } from "./modules/pgfplots.js"
 
 // AST Node Types
 export const NodeType = {
@@ -36,8 +37,12 @@ export class ASTNode {
   }
 }
 
+const defaultModules = [
+  createPgfplotsModule({ TokenType, NodeType, ASTNode })
+]
+
 export class Parser {
-  constructor(input) {
+  constructor(input, options = {}) {
     this.lexer = new Lexer(input)
     this.tokens = this.lexer.tokenize()
     this.position = 0
@@ -46,6 +51,7 @@ export class Parser {
     this.nodeDistance = 1 // Default node distance in cm
     this.defaultFontSize = null // Global font size
     this.errors = []
+    this.modules = options.modules ?? defaultModules
   }
 
   peek(offset = 0) {
@@ -141,6 +147,14 @@ export class Parser {
       case "\\foreach":
         return this.parseForeach()
       default:
+        for (const module of this.modules) {
+          if (module.parseCommand) {
+            const result = module.parseCommand(this, token)
+            if (result !== null && result !== undefined) {
+              return result
+            }
+          }
+        }
         // Unknown command, skip
         this.advance()
         return null
@@ -151,12 +165,22 @@ export class Parser {
     this.advance() // consume \begin
 
     // Expect {tikzpicture}
+    let envName = null
     if (this.peek()?.type === TokenType.STRING) {
-      const envName = this.advance().value
+      envName = this.advance().value
       if (envName === "tikzpicture") {
         // Parse picture options with style definitions
         const options = this.parseOptionsBlock()
         this.parsePictureOptions(options)
+      }
+    }
+
+    for (const module of this.modules) {
+      if (module.parseBegin) {
+        const result = module.parseBegin(this, envName)
+        if (result !== null && result !== undefined) {
+          return result
+        }
       }
     }
 
@@ -258,7 +282,7 @@ export class Parser {
       }
 
       // Parse the substituted body
-      const subParser = new Parser(substituted)
+      const subParser = new Parser(substituted, { modules: this.modules })
       subParser.coordSystem = this.coordSystem
       subParser.styles = this.styles
       subParser.nodeDistance = this.nodeDistance
@@ -1503,8 +1527,14 @@ export class Parser {
    */
   evaluateExpression(expression, variable, value) {
     try {
-      // Replace the variable with its value
-      let expr = expression.replace(new RegExp(variable.replace("\\", "\\\\"), "g"), `(${value})`)
+      // Replace the variable with its value, without touching function names
+      const escapedVar = variable.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+      let expr = expression
+      if (variable.startsWith("\\")) {
+        expr = expr.replace(new RegExp(escapedVar, "g"), `(${value})`)
+      } else {
+        expr = expr.replace(new RegExp(`\\b${escapedVar}\\b`, "g"), `(${value})`)
+      }
 
       // Handle TikZ's 'r' suffix for radians (e.g., "2*pi*x r" means the result is in radians)
       // In TikZ, sin(x r) means x is in radians, otherwise degrees
@@ -1610,7 +1640,7 @@ export class Parser {
   }
 }
 
-export function parse(input) {
-  const parser = new Parser(input)
+export function parse(input, options = {}) {
+  const parser = new Parser(input, options)
   return parser.parse()
 }
