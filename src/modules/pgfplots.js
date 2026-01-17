@@ -167,6 +167,24 @@ const buildAxisSettings = (parser, options) => {
   return settings
 }
 
+const BASIC_COLORS = new Set([
+  "black", "white", "red", "green", "blue", "cyan", "magenta",
+  "yellow", "gray", "grey", "orange", "brown", "purple"
+])
+
+const hasExplicitColor = (parser, options) => {
+  for (const opt of options) {
+    const [key, value] = parser.parseOptionKeyValue(opt)
+    if (key === "draw" || key === "color") {
+      if (value) return true
+      continue
+    }
+    if (key.includes("!")) return true
+    if (BASIC_COLORS.has(key.toLowerCase())) return true
+  }
+  return false
+}
+
 const parsePlotOptions = (parser, options) => {
   let domain = null
   let samples = null
@@ -233,12 +251,13 @@ const parseAddPlot = (parser, axisSettings, deps) => {
 
   parser.advance() // consume \addplot
 
-  if (parser.match(TokenType.PLUS)) {
-    // Ignore the '+' in \addplot+
-  }
+  const hasPlus = !!parser.match(TokenType.PLUS)
 
   const options = parser.parseOptionsBlock()
   const style = parseOptions(options)
+  if (hasPlus && !hasExplicitColor(parser, options)) {
+    style.stroke = "blue"
+  }
   const { domain: domainFromOptions, samples: samplesFromOptions, namePath } = parsePlotOptions(parser, options)
 
   const fillBetween = parseFillBetween(parser, style, TokenType)

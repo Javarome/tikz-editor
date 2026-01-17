@@ -498,12 +498,15 @@ export class Renderer {
     if (!Number.isFinite(span) || span <= 0) return []
     const rawStep = span / (desired - 1)
     const magnitude = Math.pow(10, Math.floor(Math.log10(rawStep)))
-    const steps = [1, 2, 5, 10]
+    const steps = [0.5, 1, 2, 5, 10]
     let step = steps[0] * magnitude
+    let bestDelta = Math.abs(rawStep - step)
     for (const candidate of steps) {
-      if (rawStep <= candidate * magnitude) {
-        step = candidate * magnitude
-        break
+      const candidateStep = candidate * magnitude
+      const delta = Math.abs(rawStep - candidateStep)
+      if (delta < bestDelta) {
+        bestDelta = delta
+        step = candidateStep
       }
     }
     const start = Math.ceil(range.min / step) * step
@@ -1495,6 +1498,11 @@ export class Renderer {
 
     while (i < expr.length) {
       if (expr[i] === "\\") {
+        if (expr[i + 1] === " ") {
+          textBuffer += " "
+          i += 2
+          continue
+        }
         // Handle LaTeX commands
         const cmdMatch = expr.slice(i).match(/^\\([a-zA-Z]+)/)
         if (cmdMatch) {
@@ -1600,6 +1608,16 @@ export class Renderer {
           const content = expr.slice(i + 1, end)
           this.parseMathExpression(content, subSpan, defaultStyle)
           i = end + 1
+        } else if (i < expr.length && expr[i] === "\\") {
+          const cmdMatch = expr.slice(i).match(/^\\([a-zA-Z]+)/)
+          if (cmdMatch) {
+            const symbol = this.latexSymbol(cmdMatch[1])
+            const cmdSpan = document.createElementNS(SVG_NS, "tspan")
+            cmdSpan.setAttribute("font-style", defaultStyle)
+            cmdSpan.textContent = symbol || cmdMatch[0]
+            subSpan.appendChild(cmdSpan)
+            i += cmdMatch[0].length
+          }
         } else if (i < expr.length) {
           // Single character subscript
           const charSpan = document.createElementNS(SVG_NS, "tspan")
@@ -1622,6 +1640,16 @@ export class Renderer {
           const content = expr.slice(i + 1, end)
           this.parseMathExpression(content, supSpan, defaultStyle)
           i = end + 1
+        } else if (i < expr.length && expr[i] === "\\") {
+          const cmdMatch = expr.slice(i).match(/^\\([a-zA-Z]+)/)
+          if (cmdMatch) {
+            const symbol = this.latexSymbol(cmdMatch[1])
+            const cmdSpan = document.createElementNS(SVG_NS, "tspan")
+            cmdSpan.setAttribute("font-style", defaultStyle)
+            cmdSpan.textContent = symbol || cmdMatch[0]
+            supSpan.appendChild(cmdSpan)
+            i += cmdMatch[0].length
+          }
         } else if (i < expr.length) {
           // Single character superscript
           const charSpan = document.createElementNS(SVG_NS, "tspan")
