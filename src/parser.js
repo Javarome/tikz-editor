@@ -1359,17 +1359,15 @@ export class Parser {
     for (const opt of options) {
       const [key, value] = this.parseOptionKeyValue(opt)
       if (key === "radius") {
-        radius = parseFloat(value)
+        radius = parseDistanceCm(value)
       }
     }
 
     // Check for (radius) shorthand
     if (this.peek()?.type === TokenType.COORDINATE) {
       const radiusToken = this.advance()
-      const parsed = parseFloat(radiusToken.value)
-      if (!isNaN(parsed)) {
-        radius = parsed
-      }
+      const parsed = parseDistanceCm(radiusToken.value)
+      radius = Number.isFinite(parsed) ? parsed : radius
     }
 
     return new ASTNode(NodeType.CIRCLE, {
@@ -1386,8 +1384,8 @@ export class Parser {
 
     for (const opt of options) {
       const [key, value] = this.parseOptionKeyValue(opt)
-      if (key === "x radius") rx = parseFloat(value)
-      if (key === "y radius") ry = parseFloat(value)
+      if (key === "x radius") rx = parseDistanceCm(value)
+      if (key === "y radius") ry = parseDistanceCm(value)
     }
 
     // Check for (rx and ry) shorthand
@@ -1395,8 +1393,8 @@ export class Parser {
       const dimsToken = this.advance()
       const andMatch = dimsToken.value.match(/(-?\d+\.?\d*)\s+and\s+(-?\d+\.?\d*)/)
       if (andMatch) {
-        rx = parseFloat(andMatch[1])
-        ry = parseFloat(andMatch[2])
+        rx = parseDistanceCm(andMatch[1])
+        ry = parseDistanceCm(andMatch[2])
       }
     }
 
