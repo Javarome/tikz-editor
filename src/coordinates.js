@@ -322,8 +322,9 @@ export class CoordinateSystem {
 
 /**
  * Parse a coordinate token value, handling relative prefixes
- * Returns { point, isRelative, updatesPosition, nodeName }
+ * Returns { point, isRelative, updatesPosition, nodeName, anchorNodeName, anchorName }
  * nodeName is set if the coordinate references a node (without explicit anchor)
+ * anchorNodeName and anchorName are set for explicit anchor references (node.anchor)
  */
 export function parseCoordinateToken(value, coordSystem) {
   let isRelative = false
@@ -349,7 +350,18 @@ export function parseCoordinateToken(value, coordSystem) {
   // Check if this is a plain node reference (no anchor, no coordinates)
   // This is needed for auto-anchoring at node boundaries
   let nodeName = null
+  let anchorNodeName = null
+  let anchorName = null
   const trimmed = coordString.trim()
+
+  // Check for anchor reference (node.anchor)
+  const anchorMatch = trimmed.match(/^([a-zA-Z_][a-zA-Z0-9_-]*)\.([a-zA-Z]+(?:\s+[a-zA-Z]+)?)$/)
+  if (anchorMatch && !isRelative && coordSystem.nodes.has(anchorMatch[1])) {
+    anchorNodeName = anchorMatch[1]
+    anchorName = anchorMatch[2]
+  }
+
+  // Check for plain node reference
   const isNodeRef = trimmed.match(/^([a-zA-Z_][a-zA-Z0-9_-]*)$/)
   if (isNodeRef && !isRelative && coordSystem.nodes.has(isNodeRef[1])) {
     nodeName = isNodeRef[1]
@@ -357,5 +369,5 @@ export function parseCoordinateToken(value, coordSystem) {
 
   const point = coordSystem.parseCoordinate(coordString, isRelative, updatesPosition)
 
-  return { point, isRelative, updatesPosition, nodeName }
+  return { point, isRelative, updatesPosition, nodeName, anchorNodeName, anchorName }
 }

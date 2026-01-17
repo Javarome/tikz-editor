@@ -1042,7 +1042,9 @@ export class Parser {
         options,
         edgeLabel,
         fromNodeName,
-        toNodeName: result.nodeName
+        toNodeName: result.nodeName,
+        toAnchorNodeName: result.anchorNodeName,
+        toAnchorName: result.anchorName
       }),
       toNodeName: result.nodeName
     }

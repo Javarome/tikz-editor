@@ -322,14 +322,23 @@ export class Renderer {
           const fromMetrics = segment.fromNodeName ? this.nodeMetrics.get(segment.fromNodeName) : null
           const toMetrics = segment.toNodeName ? this.nodeMetrics.get(segment.toNodeName) : null
 
+          // Check for explicit anchor reference (e.g., node.north, node.south west)
+          // Recalculate anchor position using measured dimensions
+          const toAnchorMetrics = segment.toAnchorNodeName ? this.nodeMetrics.get(segment.toAnchorNodeName) : null
+          const hasExplicitToAnchor = toAnchorMetrics && segment.toAnchorName
+          if (hasExplicitToAnchor) {
+            toPoint = this.calculateAnchorPosition(toAnchorMetrics, segment.toAnchorName)
+          }
+
           // Use node centers for boundary calculation
           const fromCenter = fromMetrics ? fromMetrics.center : segment.from
           const toCenter = toMetrics ? toMetrics.center : segment.to
 
           if (segment.fromNodeName && fromMetrics) {
-            fromPoint = this.getNodeBoundaryPoint(segment.fromNodeName, fromCenter, toCenter)
+            fromPoint = this.getNodeBoundaryPoint(segment.fromNodeName, fromCenter, toPoint)
           }
-          if (segment.toNodeName && toMetrics) {
+          // Only calculate boundary point if no explicit anchor was specified
+          if (segment.toNodeName && toMetrics && !hasExplicitToAnchor) {
             toPoint = this.getNodeBoundaryPoint(segment.toNodeName, toCenter, fromCenter)
           }
 
@@ -1264,6 +1273,70 @@ export class Renderer {
       while (defs.firstChild) {
         this.defs.appendChild(defs.firstChild)
       }
+    }
+  }
+
+  /**
+   * Calculate anchor position using measured node dimensions
+   * @param {Object} metrics - Node metrics from nodeMetrics Map {center, width, height, shape}
+   * @param {string} anchorName - Anchor name (north, south, east, west, north west, etc.)
+   * @returns {Object} Point with x, y coordinates
+   */
+  calculateAnchorPosition(metrics, anchorName) {
+    const center = metrics.center
+    const hw = metrics.width / 2
+    const hh = metrics.height / 2
+    const shape = metrics.shape || "rectangle"
+
+    // Normalize anchor name (handle both "north west" and "northwest")
+    const normalizedAnchor = anchorName.toLowerCase().replace(/\s+/g, " ").trim()
+
+    switch (normalizedAnchor) {
+      case "center":
+        return { x: center.x, y: center.y }
+      case "north":
+        return { x: center.x, y: center.y + hh }
+      case "south":
+        return { x: center.x, y: center.y - hh }
+      case "east":
+        return { x: center.x + hw, y: center.y }
+      case "west":
+        return { x: center.x - hw, y: center.y }
+      case "north east":
+      case "northeast":
+        if (shape === "circle") {
+          const r = Math.max(hw, hh)
+          const diag = r * Math.SQRT1_2
+          return { x: center.x + diag, y: center.y + diag }
+        }
+        return { x: center.x + hw, y: center.y + hh }
+      case "north west":
+      case "northwest":
+        if (shape === "circle") {
+          const r = Math.max(hw, hh)
+          const diag = r * Math.SQRT1_2
+          return { x: center.x - diag, y: center.y + diag }
+        }
+        return { x: center.x - hw, y: center.y + hh }
+      case "south east":
+      case "southeast":
+        if (shape === "circle") {
+          const r = Math.max(hw, hh)
+          const diag = r * Math.SQRT1_2
+          return { x: center.x + diag, y: center.y - diag }
+        }
+        return { x: center.x + hw, y: center.y - hh }
+      case "south west":
+      case "southwest":
+        if (shape === "circle") {
+          const r = Math.max(hw, hh)
+          const diag = r * Math.SQRT1_2
+          return { x: center.x - diag, y: center.y - diag }
+        }
+        return { x: center.x - hw, y: center.y - hh }
+      default:
+        // Unknown anchor, return center
+        return { x: center.x, y: center.y }
     }
   }
 
