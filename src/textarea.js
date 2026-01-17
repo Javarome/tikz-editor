@@ -15,7 +15,11 @@ export class Textarea extends EventTarget {
           basicSetup,
           placeholder(placeholderText),
           //          EditorView.lineWrapping,
-          latex(),
+          latex({
+            autoCloseTags: true,    // Auto-close environments
+            enableLinting: false,    // Enable linting
+            enableTooltips: true    // Enable hover tooltips
+          }),
           EditorView.updateListener.of((viewUpdate) => {
             if (viewUpdate.docChanged) {
               this.dispatchEvent(new UIEvent("input"))
