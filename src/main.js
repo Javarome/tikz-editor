@@ -59,12 +59,17 @@ if (url) {
 }
 
 exampleSelect.addEventListener("change", async () => {
-  let url = EXAMPLES[exampleSelect.value]
-  if (!url) {
-    alert(`Could not find example with ID "${exampleSelect.value}"`)
-    return
+  let value = exampleSelect.value
+  if (value) {
+    let url = EXAMPLES[value]
+    if (!url) {
+      alert(`Could not find example with ID "${value}"`)
+      return
+    }
+    await load(url)
+  } else {
+    editor.setValue("")
   }
-  await load(url)
 })
 
 // Resizable divider
