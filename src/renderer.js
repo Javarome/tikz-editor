@@ -858,16 +858,15 @@ export class Renderer {
       const y2 = to.y
       const dir = y2 >= y1 ? 1 : -1
       const length = Math.abs(y2 - y1)
-      const a = amplitude * 3
+      const a = amplitude * 1.8
       const q = length / 4
-      const side = -1
 
       pathData = [
         `M ${this.toSvgX(x)} ${this.toSvgY(y1)}`,
-        `C ${this.toSvgX(x + side * a)} ${this.toSvgY(y1 + dir * q * 0.2)}, ${this.toSvgX(x + side * a)} ${this.toSvgY(y1 + dir * q * 0.8)}, ${this.toSvgX(x)} ${this.toSvgY(y1 + dir * q)}`,
-        `C ${this.toSvgX(x - side * a)} ${this.toSvgY(y1 + dir * q * 1.2)}, ${this.toSvgX(x - side * a)} ${this.toSvgY(y1 + dir * q * 1.8)}, ${this.toSvgX(x)} ${this.toSvgY(y1 + dir * q * 2)}`,
-        `C ${this.toSvgX(x - side * a)} ${this.toSvgY(y1 + dir * q * 2.2)}, ${this.toSvgX(x - side * a)} ${this.toSvgY(y1 + dir * q * 2.8)}, ${this.toSvgX(x)} ${this.toSvgY(y1 + dir * q * 3)}`,
-        `C ${this.toSvgX(x + side * a)} ${this.toSvgY(y1 + dir * q * 3.2)}, ${this.toSvgX(x + side * a)} ${this.toSvgY(y1 + dir * q * 3.8)}, ${this.toSvgX(x)} ${this.toSvgY(y2)}`
+        `C ${this.toSvgX(x + a)} ${this.toSvgY(y1 + dir * q * 0.2)}, ${this.toSvgX(x + a)} ${this.toSvgY(y1 + dir * q * 0.8)}, ${this.toSvgX(x)} ${this.toSvgY(y1 + dir * q)}`,
+        `C ${this.toSvgX(x - a)} ${this.toSvgY(y1 + dir * q * 1.2)}, ${this.toSvgX(x - a)} ${this.toSvgY(y1 + dir * q * 1.8)}, ${this.toSvgX(x - a)} ${this.toSvgY(y1 + dir * q * 2)}`,
+        `C ${this.toSvgX(x - a)} ${this.toSvgY(y1 + dir * q * 2.2)}, ${this.toSvgX(x - a)} ${this.toSvgY(y1 + dir * q * 2.8)}, ${this.toSvgX(x)} ${this.toSvgY(y1 + dir * q * 3)}`,
+        `C ${this.toSvgX(x + a)} ${this.toSvgY(y1 + dir * q * 3.2)}, ${this.toSvgX(x + a)} ${this.toSvgY(y1 + dir * q * 3.8)}, ${this.toSvgX(x)} ${this.toSvgY(y2)}`
       ].join(" ")
     } else {
       const y = from.y
@@ -875,16 +874,15 @@ export class Renderer {
       const x2 = to.x
       const dir = x2 >= x1 ? 1 : -1
       const length = Math.abs(x2 - x1)
-      const a = amplitude * 3
+      const a = amplitude * 1.8
       const q = length / 4
-      const side = -1
 
       pathData = [
         `M ${this.toSvgX(x1)} ${this.toSvgY(y)}`,
-        `C ${this.toSvgX(x1 + dir * q * 0.2)} ${this.toSvgY(y + side * a)}, ${this.toSvgX(x1 + dir * q * 0.8)} ${this.toSvgY(y + side * a)}, ${this.toSvgX(x1 + dir * q)} ${this.toSvgY(y)}`,
-        `C ${this.toSvgX(x1 + dir * q * 1.2)} ${this.toSvgY(y - side * a)}, ${this.toSvgX(x1 + dir * q * 1.8)} ${this.toSvgY(y - side * a)}, ${this.toSvgX(x1 + dir * q * 2)} ${this.toSvgY(y)}`,
-        `C ${this.toSvgX(x1 + dir * q * 2.2)} ${this.toSvgY(y - side * a)}, ${this.toSvgX(x1 + dir * q * 2.8)} ${this.toSvgY(y - side * a)}, ${this.toSvgX(x1 + dir * q * 3)} ${this.toSvgY(y)}`,
-        `C ${this.toSvgX(x1 + dir * q * 3.2)} ${this.toSvgY(y + side * a)}, ${this.toSvgX(x1 + dir * q * 3.8)} ${this.toSvgY(y + side * a)}, ${this.toSvgX(x2)} ${this.toSvgY(y)}`
+        `C ${this.toSvgX(x1 + dir * q * 0.2)} ${this.toSvgY(y + a)}, ${this.toSvgX(x1 + dir * q * 0.8)} ${this.toSvgY(y + a)}, ${this.toSvgX(x1 + dir * q)} ${this.toSvgY(y)}`,
+        `C ${this.toSvgX(x1 + dir * q * 1.2)} ${this.toSvgY(y - a)}, ${this.toSvgX(x1 + dir * q * 1.8)} ${this.toSvgY(y - a)}, ${this.toSvgX(x1 + dir * q * 2)} ${this.toSvgY(y)}`,
+        `C ${this.toSvgX(x1 + dir * q * 2.2)} ${this.toSvgY(y - a)}, ${this.toSvgX(x1 + dir * q * 2.8)} ${this.toSvgY(y - a)}, ${this.toSvgX(x1 + dir * q * 3)} ${this.toSvgY(y)}`,
+        `C ${this.toSvgX(x1 + dir * q * 3.2)} ${this.toSvgY(y + a)}, ${this.toSvgX(x1 + dir * q * 3.8)} ${this.toSvgY(y + a)}, ${this.toSvgX(x2)} ${this.toSvgY(y)}`
       ].join(" ")
     }
 
