@@ -1,18 +1,6 @@
 import { parse } from "./parser.js"
 import { Renderer } from "./renderer.js"
-import basic from "./example/basic.tikz?raw"
-import arrows from "./example/arrows.tikz?raw"
-import curves from "./example/curves.tikz?raw"
-import nodes from "./example/nodes.tikz?raw"
-import diagram from "./example/diagram.tikz?raw"
-import full from "./example/full.tikz?raw"
-import styles from "./example/styles.tikz?raw"
-import positioning from "./example/positioning.tikz?raw"
-import subsystems from "./example/subsystems.tikz?raw"
-import wave from "./example/wave.tikz?raw"
-import concentric from "./example/concentric.tikz?raw"
-import projection from "./example/projection.tikz?raw"
-import decay from "./example/decay.tikz?raw"
+import { Textarea } from "./textarea.js"
 
 /**
  * TikZ Editor UI Controller
@@ -39,16 +27,17 @@ export class TikZEditor {
   }
 
   init() {
-    this.textarea = document.getElementById(this.textareaId)
+    const parent = document.getElementById(this.textareaId)
     this.preview = document.getElementById(this.previewId)
     this.errorDiv = document.getElementById(this.errorId)
     this.scaleSlider = document.getElementById(this.scaleId)
     this.scaleValue = document.getElementById(this.scaleValueId)
 
-    if (!this.textarea || !this.preview) {
+    if (!parent || !this.preview) {
       console.error("TikZ Editor: Could not find required elements")
       return
     }
+    this.textarea = new Textarea(parent)
 
     // Set up event listeners
     this.textarea.addEventListener("input", () => this.onInput())
@@ -167,25 +156,5 @@ export class TikZEditor {
     }
     this.renderer.setScale(scale)
     this.render()
-  }
-}
-
-// Example snippets
-export const EXAMPLES = {
-  basic, arrows, curves, nodes, diagram, full, styles, positioning, subsystems, wave, concentric, projection, decay
-}
-
-// Auto-initialize if DOM is ready
-if (typeof document !== "undefined") {
-  if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", () => {
-      const editor = new TikZEditor()
-      editor.init()
-      window.tikzEditor = editor
-    })
-  } else {
-    const editor = new TikZEditor()
-    editor.init()
-    window.tikzEditor = editor
   }
 }
