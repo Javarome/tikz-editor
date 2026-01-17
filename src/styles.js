@@ -408,7 +408,7 @@ export function parseOptions(options, baseStyle = null, scale = 1) {
       case "latex-latex":
       case "Latex-Latex":
       case "Stealth-Stealth":
-        style.arrowStart = ">"
+        style.arrowStart = "<"
         style.arrowEnd = ">"
         break
       case "|->":

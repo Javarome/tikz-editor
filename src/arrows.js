@@ -38,7 +38,7 @@ export function getArrowMarker(type, isStart, color = "#000000") {
 
   const typeMap = {
     ">": "standard",
-    "<": "standard",
+    "<": "reversed",
     "stealth": "stealth",
     "Stealth": "stealth",  // arrows.meta style
     "latex": "latex",

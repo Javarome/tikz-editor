@@ -119,14 +119,33 @@ export class CoordinateSystem {
       return projected
     }
 
-    // Check for 3D Cartesian coordinates (x, y, z)
-    const cartesian3dMatch = trimmed.match(/^(-?\d+\.?\d*)\s*,\s*(-?\d+\.?\d*)\s*,\s*(-?\d+\.?\d*)$/)
-    if (cartesian3dMatch) {
-      let point3D = {
-        x: parseFloat(cartesian3dMatch[1]),
-        y: parseFloat(cartesian3dMatch[2]),
-        z: parseFloat(cartesian3dMatch[3])
+    const parseNumericExpression = (value) => {
+      const expr = value.trim()
+      if (!expr) return null
+      const direct = parseFloat(expr)
+      if (Number.isFinite(direct) && direct.toString() === expr.replace(/^\+/, "")) {
+        return direct
       }
+      if (!/^[0-9+\-*/().\s]+$/.test(expr)) return null
+      try {
+        const result = Function(`"use strict"; return (${expr})`)()
+        return Number.isFinite(result) ? result : null
+      } catch {
+        return null
+      }
+    }
+
+    const parts = trimmed.split(",").map(part => part.trim()).filter(part => part.length > 0)
+
+    // Check for 3D Cartesian coordinates (x, y, z)
+    if (parts.length === 3) {
+      const xVal = parseNumericExpression(parts[0])
+      const yVal = parseNumericExpression(parts[1])
+      const zVal = parseNumericExpression(parts[2])
+      if (xVal === null || yVal === null || zVal === null) {
+        return this.currentPosition.clone()
+      }
+      let point3D = { x: xVal, y: yVal, z: zVal }
 
       if (isRelative) {
         point3D = {
@@ -146,13 +165,13 @@ export class CoordinateSystem {
     }
 
     // Check for Cartesian coordinates (x, y)
-    const cartesianMatch = trimmed.match(/^(-?\d+\.?\d*)\s*,\s*(-?\d+\.?\d*)$/)
-    if (cartesianMatch) {
-      let point3D = {
-        x: parseFloat(cartesianMatch[1]),
-        y: parseFloat(cartesianMatch[2]),
-        z: 0
+    if (parts.length === 2) {
+      const xVal = parseNumericExpression(parts[0])
+      const yVal = parseNumericExpression(parts[1])
+      if (xVal === null || yVal === null) {
+        return this.currentPosition.clone()
       }
+      let point3D = { x: xVal, y: yVal, z: 0 }
 
       if (isRelative) {
         point3D = {

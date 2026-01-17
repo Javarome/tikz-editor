@@ -30,7 +30,8 @@ export const EXAMPLES = {
   skyrmion: "/example/skyrmion.tikz",
   spectral: "/example/spectral.tikz",
   hubble: "/example/hubble.tikz",
-  fibration: "/example/fibration.tikz"
+  fibration: "/example/fibration.tikz",
+  spectrum: "/example/spectrum.tikz"
 }
 // Example selector
 const exampleSelect = document.getElementById("example-select")

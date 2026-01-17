@@ -313,6 +313,7 @@ export class Renderer {
   renderDraw(command, doStroke, doFill) {
     const elements = []
     const style = command.style || {}
+    const shouldFill = doFill || (style.fill && style.fill !== "none")
 
     // Track colors for arrow markers
     const strokeColor = style.stroke || this.defaultStroke
@@ -399,15 +400,15 @@ export class Renderer {
           break
 
         case NodeType.CIRCLE:
-          elements.push(this.renderCircle(segment, style, doStroke, doFill, strokeColor))
+          elements.push(this.renderCircle(segment, style, doStroke, shouldFill, strokeColor))
           break
 
         case NodeType.ELLIPSE:
-          elements.push(this.renderEllipse(segment, style, doStroke, doFill, strokeColor))
+          elements.push(this.renderEllipse(segment, style, doStroke, shouldFill, strokeColor))
           break
 
         case NodeType.RECTANGLE:
-          elements.push(this.renderRectangle(segment, style, doStroke, doFill, strokeColor))
+          elements.push(this.renderRectangle(segment, style, doStroke, shouldFill, strokeColor))
           break
 
         case NodeType.GRID:
@@ -446,7 +447,7 @@ export class Renderer {
     if (pathData) {
       const path = document.createElementNS(SVG_NS, "path")
       path.setAttribute("d", pathData)
-      this.applyStyle(path, style, doStroke, doFill, strokeColor)
+      this.applyStyle(path, style, doStroke, shouldFill, strokeColor)
       elements.unshift(path)
     }
 
