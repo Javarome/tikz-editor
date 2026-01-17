@@ -1,0 +1,31 @@
+\begin{tikzpicture}[x=1cm,y=1cm]
+  % Axis
+  \draw[->] (0,0) -- (0,6.2) node[above] {$\lambda$ (eigenvalue)};
+  \draw (0,0) -- (5.2,0);
+
+  % Electron fundamental mode lambda_e
+  \fill (1.4,1.0) circle (2pt);
+  \node[anchor=west] at (1.75,1.25) {$\lambda_e$ (fundamental mode, $Q=1$)};
+
+  % Binding band near lambda_bind
+  \foreach \y in {4.2,4.35,4.5,4.65,4.8,4.95,5.1,5.25} {
+    \draw (1.0,\y) -- (1.25,\y);
+    \fill (1.35,\y) circle (1.5pt);
+    \draw (1.45,\y) -- (1.70,\y);
+    \fill (1.85,\y) circle (1.5pt);
+  }
+  \node[anchor=west] at (2.15,4.7) {$\lambda_{\mathrm{bind}}$ band (binding modes, $Q=3$)};
+
+  % Indicate the gap with a brace
+  \draw[decorate,decoration={brace,amplitude=6pt}]
+  (0.35,1.2) -- (0.35,4.0)
+  node[midway,xshift=-1.1cm,align=center] {spectral\\gap};
+
+  % Optional dashed guide lines
+  \draw[dashed] (0,1.0) -- (1.2,1.0);
+  \draw[dashed] (0,4.7) -- (0.9,4.7);
+
+  % Formula moved to the bottom-right (no overlap)
+  \node[anchor=west,align=left] at (2.6,0.45)
+    {\small $\displaystyle \frac{m_p}{m_e}\approx \sqrt{\frac{\lambda_{\mathrm{bind}}}{\lambda_e}}$};
+\end{tikzpicture}
