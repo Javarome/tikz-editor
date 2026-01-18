@@ -98,7 +98,16 @@ export class Renderer {
    * Measure a node's dimensions without rendering it
    */
   measureNode(node) {
-    const { position, text, width, height, innerSep, fontSize } = node
+    const { position, text, innerSep, fontSize } = node
+    let { width, height } = node
+
+    if (node.fit && node.fit.length > 0) {
+      const fitBounds = this.getFitBounds(node)
+      if (fitBounds) {
+        width = Math.max(width || 0, fitBounds.maxX - fitBounds.minX)
+        height = Math.max(height || 0, fitBounds.maxY - fitBounds.minY)
+      }
+    }
 
     // Parse text and measure it
     const { lines } = this.parseNodeText(text, fontSize)
@@ -128,8 +137,8 @@ export class Renderer {
     // Calculate actual dimensions (same logic as renderNode)
     const textWidth = textBBox.width + innerSep * 2 * this.scale
     const textHeight = textBBox.height + innerSep * 2 * this.scale
-    const nodeWidth = Math.max(width * this.scale, textWidth)
-    const nodeHeight = Math.max(height * this.scale, textHeight)
+    const nodeWidth = Math.max((width || 0) * this.scale, textWidth)
+    const nodeHeight = Math.max((height || 0) * this.scale, textHeight)
 
     return {
       center: position,
@@ -137,6 +146,61 @@ export class Renderer {
       height: nodeHeight / this.scale,
       shape: node.shape || "rectangle"
     }
+  }
+
+  getFitBounds(node) {
+    if (!node.fit || node.fit.length === 0) return null
+    let minX = Infinity
+    let maxX = -Infinity
+    let minY = Infinity
+    let maxY = -Infinity
+    let found = false
+
+    for (const name of node.fit) {
+      const metrics = this.nodeMetrics.get(name)
+      if (!metrics) continue
+      const halfW = (metrics.width || 0) / 2
+      const halfH = (metrics.height || 0) / 2
+      minX = Math.min(minX, metrics.center.x - halfW)
+      maxX = Math.max(maxX, metrics.center.x + halfW)
+      minY = Math.min(minY, metrics.center.y - halfH)
+      maxY = Math.max(maxY, metrics.center.y + halfH)
+      found = true
+    }
+
+    if (!found) return null
+
+    const innerSep = node.innerSep || 0
+    return {
+      minX: minX - innerSep,
+      maxX: maxX + innerSep,
+      minY: minY - innerSep,
+      maxY: maxY + innerSep
+    }
+  }
+
+  measureLabelText(text, fontSize) {
+    if (!text) return null
+    const { lines } = this.parseNodeText(text, fontSize)
+    if (lines.length === 0) return null
+    const lineHeight = 16 * this.fontScale
+    const textEl = document.createElementNS(SVG_NS, "text")
+    textEl.setAttribute("x", "0")
+    textEl.setAttribute("text-anchor", "middle")
+    textEl.setAttribute("font-family", "serif")
+
+    const startY = -((lines.length - 1) * lineHeight) / 2
+    lines.forEach((line, index) => {
+      const tspan = document.createElementNS(SVG_NS, "tspan")
+      tspan.setAttribute("x", "0")
+      tspan.setAttribute("dy", index === 0 ? startY : lineHeight)
+      tspan.setAttribute("dominant-baseline", "central")
+      tspan.setAttribute("font-size", line.fontSize)
+      this.renderTextContent(tspan, line.content)
+      textEl.appendChild(tspan)
+    })
+
+    return this.measureText(textEl)
   }
 
   calculateBounds(ast) {
@@ -152,12 +216,22 @@ export class Renderer {
     // Helper to update bounds for a node with its full extent, accounting for anchor
     const updateNodeBounds = (node) => {
       if (!node.position) return
-      const x = node.position.x
-      const y = node.position.y
+      let x = node.position.x
+      let y = node.position.y
+
+      const fitBounds = node.fit && node.fit.length > 0 ? this.getFitBounds(node) : null
+      if (fitBounds && !node.fitPositionLocked) {
+        x = (fitBounds.minX + fitBounds.maxX) / 2
+        y = (fitBounds.minY + fitBounds.maxY) / 2
+      }
+
       // Use measured dimensions if available, otherwise estimate from text
       const metrics = node.name ? this.nodeMetrics.get(node.name) : null
       let w, h
-      if (metrics) {
+      if (fitBounds) {
+        w = fitBounds.maxX - fitBounds.minX
+        h = fitBounds.maxY - fitBounds.minY
+      } else if (metrics) {
         w = metrics.width
         h = metrics.height
       } else if (node.text) {
@@ -223,6 +297,55 @@ export class Renderer {
 
       updateBounds(minNodeX, minNodeY)
       updateBounds(maxNodeX, maxNodeY)
+
+      if (node.label?.text) {
+        const labelFontSize = node.label.fontSize || node.fontSize || 10
+        const labelMetrics = this.measureLabelText(node.label.text, labelFontSize)
+        if (labelMetrics) {
+          const labelWidth = labelMetrics.width / this.scale
+          const labelHeight = labelMetrics.height / this.scale
+          const labelPadding = 0.2
+          const labelPosition = (node.label.position || "right").toLowerCase()
+
+          let minLabelX = x
+          let maxLabelX = x
+          let minLabelY = y
+          let maxLabelY = y
+
+          switch (labelPosition) {
+            case "left":
+              minLabelX = x - w / 2 - labelPadding - labelWidth
+              maxLabelX = x - w / 2 - labelPadding
+              minLabelY = y - labelHeight / 2
+              maxLabelY = y + labelHeight / 2
+              break
+            case "above":
+            case "top":
+              minLabelX = x - labelWidth / 2
+              maxLabelX = x + labelWidth / 2
+              minLabelY = y + h / 2 + labelPadding - labelHeight / 2
+              maxLabelY = y + h / 2 + labelPadding + labelHeight / 2
+              break
+            case "below":
+            case "bottom":
+              minLabelX = x - labelWidth / 2
+              maxLabelX = x + labelWidth / 2
+              minLabelY = y - h / 2 - labelPadding - labelHeight / 2
+              maxLabelY = y - h / 2 - labelPadding + labelHeight / 2
+              break
+            case "right":
+            default:
+              minLabelX = x + w / 2 + labelPadding
+              maxLabelX = x + w / 2 + labelPadding + labelWidth
+              minLabelY = y - labelHeight / 2
+              maxLabelY = y + labelHeight / 2
+              break
+          }
+
+          updateBounds(minLabelX, minLabelY)
+          updateBounds(maxLabelX, maxLabelY)
+        }
+      }
     }
 
     for (const command of ast.commands) {
@@ -1113,7 +1236,37 @@ export class Renderer {
 
   renderNode(node) {
     const elements = []
-    const { position, text, shape, width, height, innerSep, draw, fill, style, align, fontSize, anchor, rotate } = node
+    const { text, shape, innerSep, draw, fill, style, align, fontSize, anchor, rotate, label } = node
+    let { position, width, height } = node
+
+    if (node.fit && node.fit.length > 0) {
+      const fitBounds = this.getFitBounds(node)
+      if (fitBounds) {
+        const fitWidth = fitBounds.maxX - fitBounds.minX
+        const fitHeight = fitBounds.maxY - fitBounds.minY
+        const fitCenter = {
+          x: (fitBounds.minX + fitBounds.maxX) / 2,
+          y: (fitBounds.minY + fitBounds.maxY) / 2
+        }
+
+        const rect = document.createElementNS(SVG_NS, "rect")
+        rect.setAttribute("x", this.toSvgX(fitBounds.minX))
+        rect.setAttribute("y", this.toSvgY(fitBounds.minY + fitHeight))
+        rect.setAttribute("width", fitWidth * this.scale)
+        rect.setAttribute("height", fitHeight * this.scale)
+
+        if (style?.roundedCorners) {
+          rect.setAttribute("rx", style.roundedCorners * this.scale)
+          rect.setAttribute("ry", style.roundedCorners * this.scale)
+        }
+
+        const strokeColor = style?.stroke || this.defaultStroke
+        this.applyStyle(rect, style || {}, draw, !!fill, strokeColor)
+        elements.push(rect)
+        elements.push(...this.renderNodeLabel(fitCenter, fitWidth * this.scale, fitHeight * this.scale, label, style, fontSize))
+        return elements
+      }
+    }
 
     // Parse text lines and font sizes (use node's fontSize as default if provided)
     const { lines } = this.parseNodeText(text, fontSize)
@@ -1283,7 +1436,70 @@ export class Renderer {
     }
 
     elements.push(group)
+    elements.push(...this.renderNodeLabel(position, nodeWidth, nodeHeight, label, style, fontSize))
     return elements
+  }
+
+  renderNodeLabel(position, nodeWidth, nodeHeight, label, style, fontSize) {
+    if (!label?.text) return []
+    const labelFontSize = label.fontSize || fontSize || 10
+    const { lines: labelLines } = this.parseNodeText(label.text, labelFontSize)
+    if (labelLines.length === 0) return []
+
+    const labelPadding = 0.2 * this.scale
+    const labelPosition = (label.position || "right").toLowerCase()
+    let offsetX = 0
+    let offsetY = 0
+    let labelAnchor = "start"
+
+    switch (labelPosition) {
+      case "left":
+        offsetX = -(nodeWidth / 2 + labelPadding)
+        labelAnchor = "end"
+        break
+      case "above":
+      case "top":
+        offsetY = -(nodeHeight / 2 + labelPadding)
+        labelAnchor = "middle"
+        break
+      case "below":
+      case "bottom":
+        offsetY = nodeHeight / 2 + labelPadding
+        labelAnchor = "middle"
+        break
+      case "right":
+      default:
+        offsetX = nodeWidth / 2 + labelPadding
+        labelAnchor = "start"
+        break
+    }
+
+    const labelGroup = document.createElementNS(SVG_NS, "g")
+    labelGroup.setAttribute(
+      "transform",
+      `translate(${this.toSvgX(position.x) + offsetX}, ${this.toSvgY(position.y) + offsetY})`
+    )
+
+    const labelText = document.createElementNS(SVG_NS, "text")
+    labelText.setAttribute("text-anchor", labelAnchor)
+    labelText.setAttribute("font-family", "serif")
+    labelText.setAttribute("fill", style?.stroke || this.defaultStroke)
+
+    const labelLineHeight = 16 * this.fontScale
+    const labelStartY = -((labelLines.length - 1) * labelLineHeight) / 2
+
+    labelLines.forEach((line, index) => {
+      const tspan = document.createElementNS(SVG_NS, "tspan")
+      tspan.setAttribute("x", "0")
+      tspan.setAttribute("dy", index === 0 ? labelStartY : labelLineHeight)
+      tspan.setAttribute("dominant-baseline", "central")
+      tspan.setAttribute("font-size", line.fontSize)
+      this.renderTextContent(tspan, line.content)
+      labelText.appendChild(tspan)
+    })
+
+    labelGroup.appendChild(labelText)
+    return [labelGroup]
   }
 
   /**

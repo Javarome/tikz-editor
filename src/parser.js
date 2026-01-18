@@ -456,15 +456,18 @@ export class Parser {
     // Parse "at (coord)" or check for positioning options
     let position = new Point(0, 0)
     let positionFromOptions = this.parsePositioningOptions(options)
+    let positionExplicit = false
 
     if (this.match(TokenType.AT)) {
       const coordToken = this.expect(TokenType.COORDINATE)
       if (coordToken) {
         const result = parseCoordinateToken(coordToken.value, this.coordSystem)
         position = result.point
+        positionExplicit = true
       }
     } else if (positionFromOptions) {
       position = positionFromOptions
+      positionExplicit = true
     }
 
     // Apply xshift/yshift transformations to position
@@ -488,6 +491,31 @@ export class Parser {
 
     // Parse node options for shape, size, etc. (pass text for dimension estimation)
     const nodeOptions = this.parseNodeOptions(options, text)
+
+    // If this is a fit node, compute size/position from referenced nodes
+    if (nodeOptions.fit && nodeOptions.fit.length > 0) {
+      const fitBounds = this.computeFitBounds(nodeOptions.fit)
+      if (fitBounds) {
+        const innerSep = nodeOptions.innerSep || 0
+        const paddedMinX = fitBounds.minX - innerSep
+        const paddedMaxX = fitBounds.maxX + innerSep
+        const paddedMinY = fitBounds.minY - innerSep
+        const paddedMaxY = fitBounds.maxY + innerSep
+
+        const fitWidth = paddedMaxX - paddedMinX
+        const fitHeight = paddedMaxY - paddedMinY
+
+        nodeOptions.width = Math.max(nodeOptions.width, fitWidth)
+        nodeOptions.height = Math.max(nodeOptions.height, fitHeight)
+
+        if (!positionExplicit) {
+          position = new Point(
+            (paddedMinX + paddedMaxX) / 2,
+            (paddedMinY + paddedMaxY) / 2
+          )
+        }
+      }
+    }
 
     // Calculate actual node dimensions for registration
     // For empty nodes, size is based on innerSep; for nodes with text, estimate from text length
@@ -522,8 +550,35 @@ export class Parser {
       position,
       text,
       style,
+      fitPositionLocked: positionExplicit,
       ...nodeOptions
     })
+  }
+
+  computeFitBounds(nodeNames) {
+    if (!nodeNames || nodeNames.length === 0) return null
+
+    let minX = Infinity
+    let maxX = -Infinity
+    let minY = Infinity
+    let maxY = -Infinity
+    let found = false
+
+    for (const name of nodeNames) {
+      const node = this.coordSystem.nodes.get(name)
+      if (!node) continue
+      const halfW = (node.width || 0) / 2
+      const halfH = (node.height || 0) / 2
+      minX = Math.min(minX, node.center.x - halfW)
+      maxX = Math.max(maxX, node.center.x + halfW)
+      minY = Math.min(minY, node.center.y - halfH)
+      maxY = Math.max(maxY, node.center.y + halfH)
+      found = true
+    }
+
+    if (!found) return null
+
+    return { minX, maxX, minY, maxY }
   }
 
   /**
@@ -702,7 +757,9 @@ export class Parser {
       draw: false,
       fill: null,
       align: "center",
-      fontSize: this.defaultFontSize // Use global default if set
+      fontSize: this.defaultFontSize, // Use global default if set
+      fit: null,
+      label: null
     }
 
     for (const opt of options) {
@@ -756,6 +813,12 @@ export class Parser {
         case "rotate":
           result.rotate = parseFloat(value) || 0
           break
+        case "fit":
+          result.fit = this.parseFitNodes(value)
+          break
+        case "label":
+          result.label = this.parseLabelOption(value)
+          break
         case "above":
         case "below":
         case "left":
@@ -772,6 +835,66 @@ export class Parser {
     // Parser only sets width/height if explicitly specified via minimum width/height
 
     return result
+  }
+
+  parseFitNodes(value) {
+    if (!value) return null
+    let raw = value.trim()
+    if (raw.startsWith("{") && raw.endsWith("}")) {
+      raw = raw.slice(1, -1).trim()
+    }
+    const names = []
+    const regex = /\(([^)]+)\)/g
+    let match
+    while ((match = regex.exec(raw)) !== null) {
+      const name = match[1].trim()
+      if (name) names.push(name)
+    }
+    return names.length > 0 ? names : null
+  }
+
+  parseLabelOption(value) {
+    if (!value) return null
+    let raw = value.trim()
+    if (raw.startsWith("{") && raw.endsWith("}")) {
+      raw = raw.slice(1, -1).trim()
+    }
+
+    let optionsPart = ""
+    if (raw.startsWith("[")) {
+      const end = raw.indexOf("]")
+      if (end !== -1) {
+        optionsPart = raw.slice(1, end).trim()
+        raw = raw.slice(end + 1).trim()
+      }
+    }
+
+    let position = null
+    let text = raw
+    const colonIndex = raw.indexOf(":")
+    if (colonIndex !== -1) {
+      position = raw.slice(0, colonIndex).trim()
+      text = raw.slice(colonIndex + 1).trim()
+    }
+
+    if (!text) return null
+
+    let fontSize = null
+    if (optionsPart) {
+      const opts = optionsPart.split(",").map(opt => opt.trim()).filter(Boolean)
+      for (const opt of opts) {
+        const [key, val] = this.parseOptionKeyValue(opt)
+        if (key === "font") {
+          fontSize = this.parseFontSize(val)
+        }
+      }
+    }
+
+    return {
+      position: position || "right",
+      text,
+      fontSize
+    }
   }
 
   /**
@@ -877,6 +1000,11 @@ export class Parser {
       } else if (token.type === TokenType.BRACE_END) {
         current += "}"
         depth--
+      } else if (token.type === TokenType.COORDINATE) {
+        if (current.length > 0 && !current.endsWith("=") && !current.endsWith("{") && !current.endsWith("[")) {
+          current += " "
+        }
+        current += "(" + token.value + ")"
       } else if (token.type === TokenType.COMMA && depth === 0) {
         if (current.trim()) {
           options.push(current.trim())
