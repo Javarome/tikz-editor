@@ -1656,22 +1656,29 @@ export class Parser {
   parsePlot(fromPoint) {
     this.advance() // consume "plot"
 
-    // Get domain and samples from draw command options
+    // Allow plot-specific options (e.g. plot[domain=...,samples=...]) to override draw options
     let domain = { min: 0, max: 1 }
     let samples = 100
 
+    const plotOptions = this.parseOptionsBlock()
+    const allOptions = []
     if (this.currentDrawOptions) {
-      for (const opt of this.currentDrawOptions) {
-        const [key, value] = this.parseOptionKeyValue(opt)
-        if (key === "domain" && value) {
-          const domainMatch = value.match(/^(-?\d+\.?\d*)\s*:\s*(-?\d+\.?\d*)$/)
-          if (domainMatch) {
-            domain.min = parseFloat(domainMatch[1])
-            domain.max = parseFloat(domainMatch[2])
-          }
-        } else if (key === "samples" && value) {
-          samples = parseInt(value)
+      allOptions.push(...this.currentDrawOptions)
+    }
+    if (plotOptions.length > 0) {
+      allOptions.push(...plotOptions)
+    }
+
+    for (const opt of allOptions) {
+      const [key, value] = this.parseOptionKeyValue(opt)
+      if (key === "domain" && value) {
+        const domainMatch = value.match(/^(-?\d+\.?\d*)\s*:\s*(-?\d+\.?\d*)$/)
+        if (domainMatch) {
+          domain.min = parseFloat(domainMatch[1])
+          domain.max = parseFloat(domainMatch[2])
         }
+      } else if (key === "samples" && value) {
+        samples = parseInt(value)
       }
     }
 

@@ -31,7 +31,8 @@ export const EXAMPLES = {
   spectral: "/example/spectral.tikz",
   hubble: "/example/hubble.tikz",
   fibration: "/example/fibration.tikz",
-  spectrum: "/example/spectrum.tikz"
+  spectrum: "/example/spectrum.tikz",
+  bell: "/example/bell.tikz"
 }
 // Example selector
 const exampleSelect = document.getElementById("example-select")

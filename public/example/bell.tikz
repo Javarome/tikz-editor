@@ -1,0 +1,37 @@
+\begin{tikzpicture}[
+  scale=1.05,
+  axis/.style={->, thick},
+  curve/.style={thick, smooth, blue},
+  dashedline/.style={dashed, gray},
+  label/.style={font=\small}
+]
+
+% Axes
+  \draw[axis] (0,0) -- (10,0) node[right,label] {Degree of projection compression};
+  \draw[axis] (0,0) -- (0,5) node[above,label] {Non-factorizable correlations};
+
+% Bell bounds
+  \draw[dashedline] (0,1.2) -- (10,1.2)
+  node[right,label] {$S=2$ (classical bound)};
+  \draw[dashedline] (0,4) -- (10,4)
+  node[right,label] {$S=2\sqrt{2}$ (Tsirelson bound)};
+
+% Bell-violation curve
+  \draw[curve]
+  plot[domain=0.5:9.5,samples=200]
+  (\x,{4*exp(-0.18*(\x-5)^2)});
+
+% Regime labels
+  \node[label, align=center] at (2.2,4.4)
+    {Under-compression\\(no stable separation)};
+  \node[label, align=center] at (5,4.7)
+    {Critical projection\\(quantum regime)};
+  \node[label, align=center] at (8,4.4)
+    {Over-compression\\(effective factorization)};
+
+% Vertical guides
+  \draw[dashedline] (2.2,0) -- (2.2,4.2);
+  \draw[dashedline] (5,0) -- (5,4.6);
+  \draw[dashedline] (8,0) -- (8,4.2);
+
+\end{tikzpicture}
