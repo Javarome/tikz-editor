@@ -1051,32 +1051,56 @@ export class Renderer {
       const y1 = from.y
       const y2 = to.y
       const dir = y2 >= y1 ? 1 : -1
+      const side = dir > 0 ? -1 : 1
       const length = Math.abs(y2 - y1)
-      const a = amplitude * 1.8
-      const q = length / 4
+      const a = Math.min(amplitude, length / 4)
+      const curl = Math.min(length * 0.25, a * 2)
+      const mid = (y1 + y2) / 2
+      const tipOffset = Math.min(a * 0.35, length * 0.08)
+      const yA = y1
+      const yB = y1 + dir * curl
+      const yC = mid - dir * tipOffset
+      const yD = mid
+      const yE = mid + dir * tipOffset
+      const yF = y2 - dir * curl
+      const yG = y2
 
       pathData = [
-        `M ${this.toSvgX(x)} ${this.toSvgY(y1)}`,
-        `C ${this.toSvgX(x + a)} ${this.toSvgY(y1 + dir * q * 0.2)}, ${this.toSvgX(x + a)} ${this.toSvgY(y1 + dir * q * 0.8)}, ${this.toSvgX(x)} ${this.toSvgY(y1 + dir * q)}`,
-        `C ${this.toSvgX(x - a)} ${this.toSvgY(y1 + dir * q * 1.2)}, ${this.toSvgX(x - a)} ${this.toSvgY(y1 + dir * q * 1.8)}, ${this.toSvgX(x - a)} ${this.toSvgY(y1 + dir * q * 2)}`,
-        `C ${this.toSvgX(x - a)} ${this.toSvgY(y1 + dir * q * 2.2)}, ${this.toSvgX(x - a)} ${this.toSvgY(y1 + dir * q * 2.8)}, ${this.toSvgX(x)} ${this.toSvgY(y1 + dir * q * 3)}`,
-        `C ${this.toSvgX(x + a)} ${this.toSvgY(y1 + dir * q * 3.2)}, ${this.toSvgX(x + a)} ${this.toSvgY(y1 + dir * q * 3.8)}, ${this.toSvgX(x)} ${this.toSvgY(y2)}`
+        `M ${this.toSvgX(x)} ${this.toSvgY(yA)}`,
+        `L ${this.toSvgX(x)} ${this.toSvgY(yB)}`,
+        `L ${this.toSvgX(x)} ${this.toSvgY(yC)}`,
+        `L ${this.toSvgX(x + side * a * 0.6)} ${this.toSvgY(yD)}`,
+        `L ${this.toSvgX(x)} ${this.toSvgY(yE)}`,
+        `L ${this.toSvgX(x)} ${this.toSvgY(yF)}`,
+        `L ${this.toSvgX(x)} ${this.toSvgY(yG)}`
       ].join(" ")
     } else {
       const y = from.y
       const x1 = from.x
       const x2 = to.x
       const dir = x2 >= x1 ? 1 : -1
+      const side = dir > 0 ? 1 : -1
       const length = Math.abs(x2 - x1)
-      const a = amplitude * 1.8
-      const q = length / 4
+      const a = Math.min(amplitude, length / 4)
+      const curl = Math.min(length * 0.25, a * 2)
+      const mid = (x1 + x2) / 2
+      const tipOffset = Math.min(a * 0.35, length * 0.08)
+      const xA = x1
+      const xB = x1 + dir * curl
+      const xC = mid - dir * tipOffset
+      const xD = mid
+      const xE = mid + dir * tipOffset
+      const xF = x2 - dir * curl
+      const xG = x2
 
       pathData = [
-        `M ${this.toSvgX(x1)} ${this.toSvgY(y)}`,
-        `C ${this.toSvgX(x1 + dir * q * 0.2)} ${this.toSvgY(y + a)}, ${this.toSvgX(x1 + dir * q * 0.8)} ${this.toSvgY(y + a)}, ${this.toSvgX(x1 + dir * q)} ${this.toSvgY(y)}`,
-        `C ${this.toSvgX(x1 + dir * q * 1.2)} ${this.toSvgY(y - a)}, ${this.toSvgX(x1 + dir * q * 1.8)} ${this.toSvgY(y - a)}, ${this.toSvgX(x1 + dir * q * 2)} ${this.toSvgY(y)}`,
-        `C ${this.toSvgX(x1 + dir * q * 2.2)} ${this.toSvgY(y - a)}, ${this.toSvgX(x1 + dir * q * 2.8)} ${this.toSvgY(y - a)}, ${this.toSvgX(x1 + dir * q * 3)} ${this.toSvgY(y)}`,
-        `C ${this.toSvgX(x1 + dir * q * 3.2)} ${this.toSvgY(y + a)}, ${this.toSvgX(x1 + dir * q * 3.8)} ${this.toSvgY(y + a)}, ${this.toSvgX(x2)} ${this.toSvgY(y)}`
+        `M ${this.toSvgX(xA)} ${this.toSvgY(y)}`,
+        `L ${this.toSvgX(xB)} ${this.toSvgY(y)}`,
+        `L ${this.toSvgX(xC)} ${this.toSvgY(y)}`,
+        `L ${this.toSvgX(xD)} ${this.toSvgY(y + side * a * 0.6)}`,
+        `L ${this.toSvgX(xE)} ${this.toSvgY(y)}`,
+        `L ${this.toSvgX(xF)} ${this.toSvgY(y)}`,
+        `L ${this.toSvgX(xG)} ${this.toSvgY(y)}`
       ].join(" ")
     }
 
