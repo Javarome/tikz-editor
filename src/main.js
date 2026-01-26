@@ -32,7 +32,8 @@ export const EXAMPLES = {
   hubble: "/example/hubble.tikz",
   fibration: "/example/fibration.tikz",
   spectrum: "/example/spectrum.tikz",
-  bell: "/example/bell.tikz"
+  bell: "/example/bell.tikz",
+  "non-injective": "/example/non-injective.tikz"
 }
 // Example selector
 const exampleSelect = document.getElementById("example-select")

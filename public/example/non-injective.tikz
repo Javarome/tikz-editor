@@ -1,0 +1,65 @@
+\begin{tikzpicture}[
+  font=\small,
+  box/.style={draw, rounded corners, align=left, inner sep=6pt},
+  bigbox/.style={draw, rounded corners, align=center, inner sep=10pt, minimum width=5.2cm},
+  pt/.style={circle, fill, inner sep=1.6pt},
+  arr/.style={-Latex, thick},
+  brace/.style={decorate, decoration={brace, amplitude=5pt}}
+]
+  % Left: underlying configuration space Omega
+  \node[bigbox] (Omega) {$\Omega$\\Underlying configurations};
+
+  \node[pt] (w1) at ($(Omega.south west)+(0.9,0.9)$) {};
+  \node[pt] (w2) at ($(Omega.south west)+(1.2,1.6)$) {};
+  \node[pt] (w3) at ($(Omega.south west)+(0.8,2.3)$) {};
+  \node[pt] (w4) at ($(Omega.south west)+(1.6,1.0)$) {};
+  \node[pt] (w5) at ($(Omega.south west)+(1.9,1.9)$) {};
+  \node[pt] (w6) at ($(Omega.south west)+(1.5,2.6)$) {};
+
+  \node[anchor=east] at ($(w1)+(-0.2,0)$) {$\omega_1$};
+  \node[anchor=east] at ($(w2)+(-0.2,0)$) {$\omega_2$};
+  \node[anchor=east] at ($(w3)+(-0.2,0)$) {$\omega_3$};
+  \node[anchor=east] at ($(w4)+(-0.2,0)$) {$\omega_4$};
+  \node[anchor=east] at ($(w5)+(-0.2,0)$) {$\omega_5$};
+  \node[anchor=east] at ($(w6)+(-0.2,0)$) {$\omega_6$};
+
+% Right: observable space O_A x O_B
+  \node[bigbox, right=4.5cm of Omega] (Obs) {$O_A \times O_B$\\Observable outcomes};
+
+  \node[pt] (o11) at ($(Obs.south west)+(1.2,1.1)$) {};
+  \node[pt] (o12) at ($(Obs.south west)+(1.2,2.0)$) {};
+  \node[pt] (o21) at ($(Obs.south west)+(2.3,1.6)$) {};
+  \node[pt] (o22) at ($(Obs.south west)+(2.3,2.6)$) {};
+
+  \node[anchor=west] at ($(o11)+(0.2,0)$) {$(a_1,b_1)$};
+  \node[anchor=west] at ($(o12)+(0.2,0)$) {$(a_1,b_2)$};
+  \node[anchor=west] at ($(o21)+(0.2,0)$) {$(a_2,b_1)$};
+  \node[anchor=west] at ($(o22)+(0.2,0)$) {$(a_2,b_2)$};
+
+% Projection arrow
+  \draw[arr] ($(Omega.east)+(0.1,0)$) -- node[above] {$\Pi$} ($(Obs.west)+(-0.1,0)$);
+
+% Many-to-one mapping (non-injective)
+  \draw[arr] (w1) -- (o11);
+  \draw[arr] (w2) -- (o11);
+  \draw[arr] (w3) -- (o12);
+  \draw[arr] (w4) -- (o21);
+  \draw[arr] (w5) -- (o21);
+  \draw[arr] (w6) -- (o22);
+
+% Highlight two preimages (equivalence classes)
+  \draw[brace] ($(w1)+(-0.35,-0.35)$) -- ($(w2)+(-0.35,0.35)$)
+  node[midway, left=10pt, align=left] {$[\omega]_{(a_1,b_1)}$};
+  \draw[brace] ($(w4)+(-0.35,-0.35)$) -- ($(w5)+(-0.35,0.35)$)
+  node[midway, left=10pt, align=left] {$[\omega]_{(a_2,b_1)}$};
+
+% Note on information loss
+  \node[box, below=0.9cm of Omega, anchor=north] (noteL)
+  {Distinct $\omega$ can map\\to the same observable pair.};
+  \node[box, below=0.9cm of Obs, anchor=north] (noteR)
+  {Observables identify\\equivalence classes.};
+
+% Optional: indicate "effective description" plane
+  \draw[densely dashed] ($(Obs.north west)+(-0.2,0.2)$) rectangle
+  ($(Obs.south east)+(0.2,-0.2)$);
+\end{tikzpicture}

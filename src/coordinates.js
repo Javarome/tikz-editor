@@ -93,6 +93,88 @@ export class CoordinateSystem {
   parseCoordinate(coordString, isRelative = false, updatePosition = true) {
     const trimmed = coordString.trim()
 
+    const parseCalcExpression = () => {
+      if (!trimmed.startsWith("$(") || !trimmed.endsWith(")$")) return null
+
+      let i = 2
+      let depth = 0
+      let left = ""
+
+      for (; i < trimmed.length; i++) {
+        const ch = trimmed[i]
+        if (ch === "(") {
+          depth++
+          left += ch
+          continue
+        }
+        if (ch === ")") {
+          if (depth === 0) break
+          depth--
+          left += ch
+          continue
+        }
+        left += ch
+      }
+
+      if (i >= trimmed.length - 1) return null
+      i++
+
+      while (i < trimmed.length && /\s/.test(trimmed[i])) i++
+
+      if (trimmed[i] === "$") {
+        if (i === trimmed.length - 1) {
+          return this.parseCoordinate(left.trim(), false, false)
+        }
+        return null
+      }
+
+      const op = trimmed[i]
+      if (op !== "+" && op !== "-") return null
+      i++
+
+      while (i < trimmed.length && /\s/.test(trimmed[i])) i++
+      if (trimmed[i] !== "(") return null
+      i++
+
+      depth = 0
+      let right = ""
+      for (; i < trimmed.length; i++) {
+        const ch = trimmed[i]
+        if (ch === "(") {
+          depth++
+          right += ch
+          continue
+        }
+        if (ch === ")") {
+          if (depth === 0) break
+          depth--
+          right += ch
+          continue
+        }
+        right += ch
+      }
+
+      if (i >= trimmed.length - 1) return null
+      if (trimmed.slice(i + 1).trim() !== "$") return null
+
+      const leftPoint = this.parseCoordinate(left.trim(), false, false)
+      const rightPoint = this.parseCoordinate(right.trim(), false, false)
+      return op === "+" ? leftPoint.add(rightPoint) : leftPoint.subtract(rightPoint)
+    }
+
+    const calcPoint = parseCalcExpression()
+    if (calcPoint) {
+      let result = calcPoint
+      if (isRelative) {
+        result = result.add(this.currentPosition)
+      }
+      if (updatePosition) {
+        this.currentPosition = result
+        this.currentPosition3D = { x: result.x, y: result.y, z: 0 }
+      }
+      return result
+    }
+
     // Check for polar coordinates (angle:radius)
     const polarMatch = trimmed.match(/^(-?\d+\.?\d*)\s*:\s*(-?\d+\.?\d*)$/)
     if (polarMatch) {
