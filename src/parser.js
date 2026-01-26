@@ -518,20 +518,16 @@ export class Parser {
     }
 
     // Calculate actual node dimensions for registration
-    // For empty nodes, size is based on innerSep; for nodes with text, estimate from text length
+    // For empty nodes, size is based on innerSep; for nodes with text, estimate from text metrics
     let regWidth = nodeOptions.width
     let regHeight = nodeOptions.height
-    if (regWidth === 0 && regHeight === 0) {
-      if (text) {
-        // Estimate from text length (rough approximation)
-        const textLen = text.replace(/\\[a-z]+/g, "").length
-        regWidth = Math.max(textLen * 0.12 + nodeOptions.innerSep * 2, nodeOptions.innerSep * 2)
-        regHeight = nodeOptions.innerSep * 2 + 0.3 // Add some height for text
-      } else {
-        // Empty node - size is 2 * innerSep
-        regWidth = nodeOptions.innerSep * 2
-        regHeight = nodeOptions.innerSep * 2
-      }
+    if (text) {
+      const metrics = this.estimateNodeTextMetrics(text, nodeOptions.fontSize, nodeOptions.innerSep)
+      if (regWidth === 0) regWidth = Math.max(metrics.width, nodeOptions.innerSep * 2)
+      if (regHeight === 0) regHeight = Math.max(metrics.height, nodeOptions.innerSep * 2)
+    } else {
+      if (regWidth === 0) regWidth = nodeOptions.innerSep * 2
+      if (regHeight === 0) regHeight = nodeOptions.innerSep * 2
     }
 
     // Register the node if it has a name
@@ -553,6 +549,68 @@ export class Parser {
       fitPositionLocked: positionExplicit,
       ...nodeOptions
     })
+  }
+
+  estimateNodeTextMetrics(text, defaultFontSize, innerSep) {
+    if (!text) {
+      const base = innerSep * 2
+      return { width: base, height: base }
+    }
+
+    let processedText = text
+    const tabularMatch = processedText.match(/\\begin\{tabular\}\{[^}]*\}([\s\S]*?)\\end\{tabular\}/)
+    if (tabularMatch) {
+      processedText = tabularMatch[1].trim()
+    }
+
+    const rawLines = processedText.split(/\\\\/)
+    let maxLineWidth = 0
+    let totalHeight = 0
+    const baseFontSize = defaultFontSize || 14
+
+    for (const rawLine of rawLines) {
+      let content = rawLine.trim()
+      if (!content) continue
+
+      content = content.replace(/^\[-?\d+\.?\d*(pt|mm|cm|ex|em)?\]\s*/i, "")
+
+      let lineFontSize = baseFontSize
+      if (content.includes("\\footnotesize")) {
+        lineFontSize = 10
+        content = content.replace(/\\footnotesize\s*/g, "")
+      } else if (content.includes("\\scriptsize")) {
+        lineFontSize = 8
+        content = content.replace(/\\scriptsize\s*/g, "")
+      } else if (content.includes("\\small")) {
+        lineFontSize = 12
+        content = content.replace(/\\small\s*/g, "")
+      } else if (content.includes("\\large")) {
+        lineFontSize = 16
+        content = content.replace(/\\large\s*/g, "")
+      } else if (content.includes("\\Large")) {
+        lineFontSize = 18
+        content = content.replace(/\\Large\s*/g, "")
+      }
+
+      const plainContent = content.replace(/\\[a-zA-Z]+/g, "").replace(/[{}$]/g, "")
+      // Approximate width: average glyph ~0.6em, convert px->cm (1 unit = 50px)
+      const charWidth = (lineFontSize * 0.6) / 50
+      const lineWidth = plainContent.length * charWidth
+      maxLineWidth = Math.max(maxLineWidth, lineWidth)
+
+      // Approximate height per line using 1.2em line height
+      totalHeight += (lineFontSize * 1.2) / 50
+    }
+
+    if (maxLineWidth === 0 || totalHeight === 0) {
+      const base = innerSep * 2
+      return { width: base, height: base }
+    }
+
+    return {
+      width: maxLineWidth + innerSep * 2,
+      height: totalHeight + innerSep * 2
+    }
   }
 
   computeFitBounds(nodeNames) {
@@ -1848,15 +1906,13 @@ export class Parser {
     // Calculate actual node dimensions for registration
     let regWidth = nodeOptions.width
     let regHeight = nodeOptions.height
-    if (regWidth === 0 && regHeight === 0) {
-      if (text) {
-        const textLen = text.replace(/\\[a-z]+/g, "").length
-        regWidth = Math.max(textLen * 0.12 + nodeOptions.innerSep * 2, nodeOptions.innerSep * 2)
-        regHeight = nodeOptions.innerSep * 2 + 0.3
-      } else {
-        regWidth = nodeOptions.innerSep * 2
-        regHeight = nodeOptions.innerSep * 2
-      }
+    if (text) {
+      const metrics = this.estimateNodeTextMetrics(text, nodeOptions.fontSize, nodeOptions.innerSep)
+      if (regWidth === 0) regWidth = Math.max(metrics.width, nodeOptions.innerSep * 2)
+      if (regHeight === 0) regHeight = Math.max(metrics.height, nodeOptions.innerSep * 2)
+    } else {
+      if (regWidth === 0) regWidth = nodeOptions.innerSep * 2
+      if (regHeight === 0) regHeight = nodeOptions.innerSep * 2
     }
 
     // Register the node

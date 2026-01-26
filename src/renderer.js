@@ -1401,8 +1401,11 @@ export class Renderer {
 
       // Apply fill
       if (fill) {
-        const fillColor = parseColor(fill)
-        shapeEl.setAttribute("fill", fillColor || "#ffffff")
+        let fillColor = parseColor(fill)
+        if (!fillColor || fill.toLowerCase() === "currentcolor") {
+          fillColor = style?.stroke || this.defaultStroke
+        }
+        shapeEl.setAttribute("fill", fillColor)
       } else {
         shapeEl.setAttribute("fill", "none")
       }
