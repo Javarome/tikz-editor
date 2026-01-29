@@ -620,7 +620,8 @@ export class Renderer {
   generateTicks(range, desired = 6) {
     const span = range.max - range.min
     if (!Number.isFinite(span) || span <= 0) return []
-    const rawStep = span / (desired - 1)
+    const targetTicks = span <= 2 ? Math.min(desired, 4) : desired
+    const rawStep = span / (targetTicks - 1)
     const magnitude = Math.pow(10, Math.floor(Math.log10(rawStep)))
     const steps = [0.5, 1, 2, 5, 10]
     let step = steps[0] * magnitude
@@ -635,7 +636,8 @@ export class Renderer {
     }
     const start = Math.ceil(range.min / step) * step
     const ticks = []
-    for (let value = start; value <= range.max + step * 0.5; value += step) {
+    const epsilon = step * 1e-6
+    for (let value = start; value <= range.max + epsilon; value += step) {
       ticks.push(Number(value.toFixed(6)))
     }
     return ticks
@@ -688,9 +690,15 @@ export class Renderer {
       const value = eqIndex >= 0 ? opt.slice(eqIndex + 1).trim() : null
 
       if (key === "at" && value) {
-        const match = value.match(/rel axis cs:\s*([-\d.]+)\s*,\s*([-\d.]+)/)
+        const rawValue = value.trim().replace(/^\{/, "").replace(/\}$/, "")
+        const match = rawValue.match(/rel axis cs:\s*([-\d.]+)\s*,\s*([-\d.]+)/)
         if (match) {
           style.relPos = { x: parseFloat(match[1]), y: parseFloat(match[2]) }
+        } else {
+          const tuple = rawValue.match(/^\(?\s*([-\d.]+)\s*,\s*([-\d.]+)\s*\)?$/)
+          if (tuple) {
+            style.relPos = { x: parseFloat(tuple[1]), y: parseFloat(tuple[2]) }
+          }
         }
       } else if (key === "anchor" && value) {
         style.anchor = value
