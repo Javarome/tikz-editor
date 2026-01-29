@@ -6,9 +6,9 @@ const LINEWIDTH_CM = 10
 const parseLength = (value) => {
   if (!value) return null
   const trimmed = value.trim()
-  const linewidthMatch = trimmed.match(/^(-?\d+\.?\d*)?\s*\\linewidth$/)
-  if (linewidthMatch) {
-    const factor = linewidthMatch[1] ? parseFloat(linewidthMatch[1]) : 1
+  const widthMatch = trimmed.match(/^(-?\d+\.?\d*)?\s*\\(linewidth|columnwidth|textwidth)$/)
+  if (widthMatch) {
+    const factor = widthMatch[1] ? parseFloat(widthMatch[1]) : 1
     return Number.isFinite(factor) ? factor * LINEWIDTH_CM : LINEWIDTH_CM
   }
 

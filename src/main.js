@@ -33,7 +33,8 @@ export const EXAMPLES = {
   fibration: "/example/fibration.tikz",
   spectrum: "/example/spectrum.tikz",
   bell: "/example/bell.tikz",
-  "non-injective": "/example/non-injective.tikz"
+  nonInjective: "/example/non-injective.tikz",
+  bornInfeld: "/example/born-infeld.tikz"
 }
 // Example selector
 const exampleSelect = document.getElementById("example-select")
