@@ -455,7 +455,6 @@ export class Parser {
 
     // Parse "at (coord)" or check for positioning options
     let position = new Point(0, 0)
-    let positionFromOptions = this.parsePositioningOptions(options)
     let positionExplicit = false
 
     if (this.match(TokenType.AT)) {
@@ -464,20 +463,6 @@ export class Parser {
         const result = parseCoordinateToken(coordToken.value, this.coordSystem)
         position = result.point
         positionExplicit = true
-      }
-    } else if (positionFromOptions) {
-      position = positionFromOptions
-      positionExplicit = true
-    }
-
-    // Apply xshift/yshift transformations to position
-    if (style.transformations) {
-      for (const transform of style.transformations) {
-        if (transform.type === "xshift") {
-          position = new Point(position.x + transform.value, position.y)
-        } else if (transform.type === "yshift") {
-          position = new Point(position.x, position.y + transform.value)
-        }
       }
     }
 
@@ -528,6 +513,29 @@ export class Parser {
     } else {
       if (regWidth === 0) regWidth = nodeOptions.innerSep * 2
       if (regHeight === 0) regHeight = nodeOptions.innerSep * 2
+    }
+
+    // If no explicit position yet, try to use positioning options with actual node size
+    if (!positionExplicit) {
+      const positionFromOptions = this.parsePositioningOptions(options, {
+        halfWidth: regWidth / 2,
+        halfHeight: regHeight / 2
+      })
+      if (positionFromOptions) {
+        position = positionFromOptions
+        positionExplicit = true
+      }
+    }
+
+    // Apply xshift/yshift transformations to position
+    if (style.transformations) {
+      for (const transform of style.transformations) {
+        if (transform.type === "xshift") {
+          position = new Point(position.x + transform.value, position.y)
+        } else if (transform.type === "yshift") {
+          position = new Point(position.x, position.y + transform.value)
+        }
+      }
     }
 
     // Register the node if it has a name
@@ -643,16 +651,25 @@ export class Parser {
    * Parse positioning options like "below=of nodename", "below left=10mm and 12mm of node"
    * Returns a Point if positioning is found, null otherwise
    */
-  parsePositioningOptions(options) {
+  parsePositioningOptions(options, nodeSize = null) {
     const simpleDirections = ["above", "below", "left", "right"]
     const compoundDirections = ["above left", "above right", "below left", "below right"]
     const offsets = { x: 0, y: 0 }
     let refNode = null
     let direction = null
     let compoundDistances = { vertical: null, horizontal: null }
+    const fallbackHalf = 0.8 // cm
+    const nodeHalfHeight = nodeSize?.halfHeight ?? fallbackHalf
+    const nodeHalfWidth = nodeSize?.halfWidth ?? fallbackHalf
 
     for (const opt of options) {
-      const [key, value] = this.parseOptionKeyValue(opt)
+      let [key, value] = this.parseOptionKeyValue(opt)
+
+      // Support legacy "below of=nodename" syntax by normalizing to "below=of nodename"
+      if (value && /\s+of$/.test(key)) {
+        key = key.replace(/\s+of$/, "")
+        value = `of ${value}`
+      }
 
       // Check for compound directions first (e.g., "below left")
       if (compoundDirections.includes(key)) {
@@ -720,8 +737,6 @@ export class Parser {
         const dist = compoundDistances.vertical !== null ? compoundDistances.vertical : this.nodeDistance
         // Use anchors to get edge-to-edge distance (like TikZ positioning library)
         // Add extra spacing for the new node's half-height (approximate)
-        const nodeHalfHeight = 0.8 // Approximate half-height of a typical node in cm
-
         // Handle compound directions
         if (compoundDirections.includes(direction)) {
           const vDist = compoundDistances.vertical !== null ? compoundDistances.vertical : dist
@@ -740,10 +755,10 @@ export class Parser {
 
           if (direction.includes("left")) {
             const leftAnchor = node.anchors?.west || refPoint
-            x = leftAnchor.x - hDist - nodeHalfHeight
+            x = leftAnchor.x - hDist - nodeHalfWidth
           } else if (direction.includes("right")) {
             const rightAnchor = node.anchors?.east || refPoint
-            x = rightAnchor.x + hDist + nodeHalfHeight
+            x = rightAnchor.x + hDist + nodeHalfWidth
           }
 
           return new Point(x, y)
@@ -759,10 +774,10 @@ export class Parser {
             return new Point(refPoint.x, bottomAnchor.y - dist - nodeHalfHeight)
           case "right":
             const rightAnchor = node.anchors?.east || refPoint
-            return new Point(rightAnchor.x + dist + nodeHalfHeight, refPoint.y)
+            return new Point(rightAnchor.x + dist + nodeHalfWidth, refPoint.y)
           case "left":
             const leftAnchor = node.anchors?.west || refPoint
-            return new Point(leftAnchor.x - dist - nodeHalfHeight, refPoint.y)
+            return new Point(leftAnchor.x - dist - nodeHalfWidth, refPoint.y)
         }
       }
     }

@@ -34,7 +34,8 @@ export const EXAMPLES = {
   spectrum: "/example/spectrum.tikz",
   bell: "/example/bell.tikz",
   nonInjective: "/example/non-injective.tikz",
-  bornInfeld: "/example/born-infeld.tikz"
+  bornInfeld: "/example/born-infeld.tikz",
+  projectiveRegimes: "/example/projective-regimes.tikz"
 }
 // Example selector
 const exampleSelect = document.getElementById("example-select")

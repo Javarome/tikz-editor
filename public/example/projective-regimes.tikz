@@ -1,0 +1,23 @@
+\begin{tikzpicture}[
+  node distance=1.4cm,
+  every node/.style={align=center},
+  box/.style={draw, rounded corners, thick, minimum width=5cm, minimum height=1cm},
+  narrow/.style={draw, thick, minimum width=1.8cm, minimum height=0.8cm}
+]
+
+% Nodes
+  \node[box] (omega) {$\Omega$\\Relational substrate $\chi$\\
+  {\footnotesize non-geometric, dynamical, bounded}};
+  \node[narrow, below of=omega] (bi) {$b_{\mathrm{BI}}$\\
+  {\footnotesize flux bound}};
+  \node[narrow, below of=bi] (pi) {$\Pi$\\
+  {\footnotesize non-injective projection}};
+  \node[box, below of=pi] (obs) {$O$\\Effective observables\\
+  {\footnotesize spacetime, fields, temperature, metric}};
+
+% Connections
+  \draw[thick] (omega) -- (bi);
+  \draw[thick] (bi) -- (pi);
+  \draw[thick] (pi) -- (obs);
+
+\end{tikzpicture}
